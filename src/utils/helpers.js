@@ -24,8 +24,19 @@ export const fmtTime = (iso) =>
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
   });
 
-/* ─── Seat-availability helper ─── */
+/* ─── Seat-availability helper ───
+ *  Sums group_size (not just row count) so a 2-seat booking
+ *  correctly occupies 2 slots. Falls back to 1 for old records.
+ *  Field names match the Supabase `students` table schema.
+ */
 export const usedSeats = (bks, cId, date, sId) =>
-  bks.filter(
-    (b) => b.centerId === cId && b.date === date && b.slotId === sId && b.status !== "rejected"
-  ).length;
+  bks
+    .filter(
+      (b) =>
+        b.center === cId &&
+        b.exam_date === date &&
+        b.slot === sId &&
+        b.payment_status !== "rejected"
+    )
+    .reduce((sum, b) => sum + (b.group_size || 1), 0);
+

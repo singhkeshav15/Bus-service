@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase.js";
 import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
@@ -12,7 +12,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   // Editable settings state
   const [gen, setGen] = useState({
     brandName: settings.brandName, tagline: settings.tagline,
-    upiId: settings.upiId, upiName: settings.upiName,
+    upiId: settings.upiId, upiName: settings.upiName, upiQr: settings.upiQr || "",
     adminPass: settings.adminPass, seatsPerSlot: settings.seatsPerSlot,
     whatsapp: settings.whatsapp, supportPhone: settings.supportPhone,
     announcement: settings.announcement, announcementOn: settings.announcementOn,
@@ -33,32 +33,91 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     toast("Settings saved successfully!", "success");
   };
 
-  const setStatus = (id, status) => {
-    const upd = bookings.map((b) => (b.id === id ? { ...b, status } : b));
+  /* ── Admin: Approve / Reject ── */
+  const setStatus = async (id, status) => {
+    // Optimistically update UI first for instant feedback
+    const upd = bookings.map((b) => (b.id === id ? { ...b, payment_status: status } : b));
     setBookings(upd);
-    setModal((m) => (m?.id === id ? { ...m, status } : m));
-    toast(status === "approved" ? "Booking approved ✓" : "Booking rejected", status === "approved" ? "success" : "error");
+    setModal((m) => (m?.id === id ? { ...m, payment_status: status } : m));
+
+    // Persist to Supabase
+    const { error } = await supabase
+      .from("students")
+      .update({ payment_status: status })
+      .eq("id", id);
+
+    if (error) {
+      // Revert optimistic update on failure
+      setBookings(bookings);
+      setModal((m) => m);
+      toast(`Failed to update status: ${error.message}`, "error");
+    } else {
+      toast(
+        status === "approved" ? "Booking approved ✓" : "Booking rejected",
+        status === "approved" ? "success" : "error"
+      );
+    }
   };
 
-  const del = (id) => {
-    if (!confirm("Delete this booking?")) return;
-    const upd = bookings.filter((b) => b.id !== id);
-    setBookings(upd);
+  /* ── Admin: Delete ── */
+  const del = async (id) => {
+    if (!confirm("Delete this booking? This cannot be undone.")) return;
+
+    // Optimistically update UI
+    const prev = bookings;
+    setBookings(bookings.filter((b) => b.id !== id));
     setModal(null);
-    toast("Booking deleted", "info");
+
+    // Persist to Supabase
+    const { error } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      setBookings(prev); // revert on failure
+      toast(`Delete failed: ${error.message}`, "error");
+    } else {
+      toast("Booking deleted", "info");
+    }
   };
 
   const exportCSV = () => {
     const rows = [
-      ["ID", "Name", "Phone", "Email", "College", "Roll No", "Center", "City", "Date", "Slot", "Seats", "Amount", "UTR", "Status", "Booked At"],
-      ...bookings.map((b) => [b.id, b.name, b.phone, b.email || "", b.college, b.rollNo || "", b.centerName, b.centerCity || "", b.date, b.slotLabel, b.groupSize || 1, b.price, b.utr, b.status, b.createdAt]),
+      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
+      ...bookings.map((b) => [
+        b.booking_ref || b.id,
+        b.name, b.phone, b.email || "",
+        b.college, b.roll_no || "",
+        b.center, b.exam_date, b.slot,
+        b.group_size || 1, b.price || "",
+        b.utr, b.payment_status,
+        b.created_at,
+      ]),
     ];
-    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csv);
     a.download = `mk_bookings_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
+
+  /* ── Polling fallback: refresh every 30s when admin panel is open ──
+   *  Works even if Supabase real-time is not enabled.
+   *  Real-time subscription (in App.jsx) handles instant updates when available.
+   */
+  const refresh = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setBookings(data);
+  }, [setBookings]);
+
+  useEffect(() => {
+    const interval = setInterval(refresh, 30_000); // every 30 seconds
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   /* ── Derived stats ── */
   const stats = {
@@ -153,7 +212,9 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Bookings by Center</div>
               <div style={{ display: "grid", gap: 10 }}>
                 {settings.centers.map((c) => {
-                  const cnt = bookings.filter((b) => b.center === c.id && b.payment_status !== "rejected").length;
+                  const cnt = bookings
+                    .filter((b) => b.center === c.id && b.payment_status !== "rejected")
+                    .reduce((sum, b) => sum + (b.group_size || 1), 0);
                   const max = settings.seatsPerSlot * settings.slots.length * settings.dates.length;
                   const pct = Math.min(100, (cnt / Math.max(1, max)) * 100);
                   return (
@@ -190,7 +251,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                     <tbody>
                       {[...bookings].slice(0, 8).map((b) => (
                         <tr key={b.id} onClick={() => { setModal(b); setTab("bookings"); }}>
-                          <td><span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--a)" }}>{b.id}</span></td>
+                          <td><span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--a)" }}>{b.booking_ref || b.id?.slice(0,8)}</span></td>
                           <td><div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div><div style={{ fontSize: 11, color: "var(--t3)" }}>{b.college?.split(" ").slice(0, 2).join(" ")}</div></td>
                           <td style={{ fontSize: 12 }}>{b.center}</td>
                           <td className="hide-sm" style={{ fontSize: 12, color: "var(--t2)" }}>{b.exam_date ? fmtDate(b.exam_date) : "—"}</td>
@@ -242,7 +303,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                     )}
                     {filtered.map((b) => (
                       <tr key={b.id}>
-                        <td><span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--a)" }}>{b.id}</span></td>
+                        <td><span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--a)" }}>{b.booking_ref || b.id?.slice(0,8)}</span></td>
                         <td>
                           <div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div>
                           <div style={{ fontSize: 11, color: "var(--t3)" }}>{b.college}</div>
@@ -332,6 +393,27 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                       <input className="inp" placeholder={f.p} value={gen[f.k] || ""} onChange={(e) => setGen((g) => ({ ...g, [f.k]: e.target.value }))} />
                     </div>
                   ))}
+                </div>
+
+                {/* UPI QR Code URL */}
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <label>UPI QR Code Image URL <span style={{ color: "var(--t3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional — shown to students on payment page)</span></label>
+                  <input className="inp" placeholder="https://... paste a direct image URL of your UPI QR code" value={gen.upiQr || ""} onChange={(e) => setGen((g) => ({ ...g, upiQr: e.target.value }))} />
+                  {gen.upiQr && (
+                    <div style={{ marginTop: 10, display: "flex", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ background: "#fff", padding: 8, borderRadius: 10, display: "inline-flex", boxShadow: "0 4px 14px rgba(0,0,0,0.3)" }}>
+                        <img src={gen.upiQr} alt="QR Preview" style={{ width: 100, height: 100, display: "block", borderRadius: 4 }}
+                          onError={(e) => { e.target.style.display = "none"; }}
+                        />
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--t3)", lineHeight: 1.6 }}>
+                        ✓ QR preview loaded<br/>Students will see this on the payment step.<br/>
+                        <button className="btn btn-danger btn-xs" style={{ marginTop: 6 }} onClick={() => setGen((g) => ({ ...g, upiQr: "" }))}>
+                          Remove QR
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label>Payment Instructions (shown to students)</label>
@@ -446,7 +528,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
               <div>
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 19 }}>{modal.name}</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--a)", marginTop: 3, letterSpacing: 1 }}>{modal.id}</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--a)", marginTop: 3, letterSpacing: 1 }}>{modal.booking_ref || modal.id?.slice(0,8).toUpperCase()}</div>
                 <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{fmtTime(modal.created_at)}</div>
               </div>
               <span className={`badge badge-${modal.payment_status}`} style={{ fontSize: 12 }}>{modal.payment_status}</span>

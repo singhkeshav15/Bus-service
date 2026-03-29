@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { supabase } from "../../supabase.js";
+import { genId, fmtDate, usedSeats } from "../../utils/helpers.js";
 import I from "../../constants/icons.jsx";
-import { fmtDate, usedSeats } from "../../utils/helpers.js";
+
 
 const EMPTY_FORM = {
   centerId: "", date: "", slotId: "",
@@ -20,6 +21,7 @@ function dataURLtoFile(dataurl, filename) {
 }
 
 export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
+  const [submitError, setSubmitError] = useState("");
   const [step,    setStep]    = useState(1);
   const [form,    setForm]    = useState(EMPTY_FORM);
   const [drag,    setDrag]    = useState(false);
@@ -49,43 +51,64 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
   const ok4   = form.utr.trim().length >= 6 && form.screenshot;
 
   const submit = async () => {
-    try {
-      setLoading(true);
+    setSubmitError("");
+    setLoading(true);
 
-      // 1. Upload image to Supabase Storage
-      const fileName = `${Date.now()}-${form.screenshotName}`;
+    try {
+      // ── 1. Generate a friendly user-facing booking reference ──
+      const bookingRef = genId();
+
+      // ── 2. Upload payment screenshot to Supabase Storage ──
+      const fileName = `${bookingRef}-${Date.now()}-${form.screenshotName}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("payments")
         .upload(`screenshots/${fileName}`, dataURLtoFile(form.screenshot, fileName));
 
-      if (uploadError) throw uploadError;
+      if (uploadError) throw new Error(`Screenshot upload failed: ${uploadError.message}`);
 
       const imageUrl = `https://fbczqcuuqtiaibffsnws.supabase.co/storage/v1/object/public/payments/${uploadData.path}`;
 
-      // 2. Save booking record to Supabase DB
-      const { error: dbError } = await supabase.from("students").insert([
-        {
-          name:             form.name,
-          email:            form.email,
-          phone:            form.phone,
-          screenshot_url:   imageUrl,
-          payment_status:   "pending",
-          college:          form.college,
-          roll_no:          form.rollNo,
-          utr:              form.utr,
-          center:           form.centerId,
-          exam_date:        form.date,
-          slot:             form.slotId,
-        },
-      ]);
+      // ── 3. Insert booking row into Supabase ──
+      const { error: dbError } = await supabase.from("students").insert([{
+        booking_ref:    bookingRef,
+        name:           form.name.trim(),
+        email:          form.email.trim() || null,
+        phone:          form.phone.trim(),
+        screenshot_url: imageUrl,
+        payment_status: "pending",
+        college:        form.college.trim(),
+        roll_no:        form.rollNo.trim() || null,
+        utr:            form.utr.trim(),
+        center:         form.centerId,
+        exam_date:      form.date,
+        slot:           form.slotId,
+        group_size:     form.groupSize,
+        price:          totalAmt,
+      }]);
 
-      if (dbError) throw dbError;
+      if (dbError) throw new Error(`Booking save failed: ${dbError.message}`);
+
+      // ── 4. Build confirmation object for the success screen ──
+      const confirmedBooking = {
+        id:         bookingRef,
+        name:       form.name.trim(),
+        phone:      form.phone.trim(),
+        college:    form.college.trim(),
+        centerName: center.name,
+        centerCity: center.city,
+        date:       form.date,
+        slotLabel:  slot.label,
+        groupSize:  form.groupSize,
+        price:      totalAmt,
+      };
 
       setLoading(false);
-      alert("Booking submitted successfully");
+      onConfirm(confirmedBooking); // ← navigate to Confirmation screen
+
     } catch (err) {
-      console.error(err);
-      alert(err.message);
+      console.error("Booking error:", err);
+      setLoading(false);
+      setSubmitError(err.message || "Something went wrong. Please try again.");
     }
   };
 
@@ -287,6 +310,17 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
                 <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 6 }}>Pay to: <strong style={{ color: "var(--t2)" }}>{settings.upiName}</strong></div>
               </div>
 
+              {/* QR Code — shown when admin has uploaded one */}
+              {settings.upiQr && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0", borderTop: "1px solid var(--b)", borderBottom: "1px solid var(--b)", margin: "12px 0" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6 }}>Scan QR to Pay</div>
+                  <div style={{ background: "#fff", padding: 10, borderRadius: 12, display: "inline-flex", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+                    <img src={settings.upiQr} alt="UPI QR Code" style={{ width: 160, height: 160, display: "block", borderRadius: 6 }} />
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--t3)", textAlign: "center" }}>Open your payment app → Scan QR → Pay <strong style={{ color: "var(--a)" }}>₹{totalAmt}</strong></div>
+                </div>
+              )}
+
               {/* Instructions */}
               <div style={{ fontSize: 12.5, color: "var(--t2)", lineHeight: 1.85 }}>
                 {settings.instructions.split("\n").map((line, i) => (
@@ -296,6 +330,7 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
                   </div>
                 ))}
               </div>
+
             </div>
 
             <div style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12.5, color: "#93C5FD", display: "flex", gap: 8 }}>
@@ -353,15 +388,23 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
               </div>
             </div>
 
+            {/* Inline error message */}
+            {submitError && (
+              <div style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: "#F87171", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <span style={{ flexShrink: 0, marginTop: 1 }}>{I.x}</span>
+                <span>{submitError}</span>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-ghost" style={{ minWidth: 90 }} onClick={() => setStep(3)}>{I.arrowLeft} Back</button>
+              <button className="btn btn-ghost" style={{ minWidth: 90 }} onClick={() => setStep(3)} disabled={loading}>{I.arrowLeft} Back</button>
               <button className="btn btn-primary" style={{ flex: 1, padding: 14 }} disabled={!ok4 || loading} onClick={submit}>
                 {loading ? (
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
                       <circle cx="12" cy="12" r="10" opacity=".3" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
                     </svg>
-                    Confirming Booking…
+                    Saving your booking…
                   </span>
                 ) : <>{I.check} Confirm Booking</>}
               </button>

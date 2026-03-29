@@ -45,6 +45,32 @@ export default function App() {
     fetchBookings();
   }, []);
 
+  /* ── Real-time subscription — live seat updates for students & admin ──
+   *  Requires: Supabase dashboard → Database → Replication → enable `students` table
+   */
+  useEffect(() => {
+    const channel = supabase
+      .channel("students-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "students" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            _setBookings((prev) => [payload.new, ...prev]);
+          } else if (payload.eventType === "UPDATE") {
+            _setBookings((prev) =>
+              prev.map((b) => (b.id === payload.new.id ? payload.new : b))
+            );
+          } else if (payload.eventType === "DELETE") {
+            _setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
+
   /* ── State setters ── */
   const setSettings = (s) => { _setSettings(s); sv(SK, s); };
   const setBookings = (b) => { _setBookings(b); };
