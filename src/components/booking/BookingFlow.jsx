@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { supabase } from "../../supabase.js";
 import { genId, fmtDate, usedSeats } from "../../utils/helpers.js";
 import I from "../../constants/icons.jsx";
-
+import { Turnstile } from "@marsidev/react-turnstile";
 
 const EMPTY_FORM = {
   centerId: "", date: "", slotId: "",
@@ -11,7 +11,7 @@ const EMPTY_FORM = {
 };
 
 function dataURLtoFile(dataurl, filename) {
-  const arr  = dataurl.split(",");
+  const arr = dataurl.split(",");
   const mime = arr[0].match(/:(.*?);/)[1];
   const bstr = atob(arr[1]);
   let n = bstr.length;
@@ -20,19 +20,20 @@ function dataURLtoFile(dataurl, filename) {
   return new File([u8arr], filename, { type: mime });
 }
 
-export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
+export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
   const [submitError, setSubmitError] = useState("");
-  const [step,    setStep]    = useState(1);
-  const [form,    setForm]    = useState(EMPTY_FORM);
-  const [drag,    setDrag]    = useState(false);
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [copied,  setCopied]  = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const fileRef = useRef();
 
-  const center   = settings.centers.find((c) => c.id === form.centerId);
-  const slot     = settings.slots.find((s) => s.id === form.slotId);
-  const avail    = center && form.date && form.slotId
-    ? settings.seatsPerSlot - usedSeats(bookings, form.centerId, form.date, form.slotId)
+  const center = settings.centers.find((c) => c.id === form.centerId);
+  const slot = settings.slots.find((s) => s.id === form.slotId);
+  const avail = center && form.date && form.slotId
+    ? settings.seatsPerSlot - usedSeats(seatCounts, form.centerId, form.date, form.slotId)
     : null;
   const totalAmt = center ? center.price * form.groupSize : 0;
 
@@ -45,136 +46,131 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
     r.readAsDataURL(file);
   };
 
-  const STEPS = ["Route", "Details", "Pay", "Upload"];
-  const ok1   = form.centerId && form.date && form.slotId && avail > 0;
-  const ok2   = form.name.trim() && form.phone.trim().length >= 10 && form.college.trim();
-  const ok4   = form.utr.trim().length >= 6 && form.screenshot;
+  const STEPS = ["Selection", "Identity", "Payment", "Verify"];
+  const ok1 = form.centerId && form.date && form.slotId && avail > 0;
+  const ok2 = form.name.trim() && /^\d{10}$/.test(form.phone.trim()) && form.college.trim() && form.rollNo.trim();
+  const ok4 = form.utr.trim().length === 12 && form.screenshot && turnstileToken;
 
   const submit = async () => {
     setSubmitError("");
     setLoading(true);
-
     try {
-      // ── 1. Generate a friendly user-facing booking reference ──
       const bookingRef = genId();
-
-      // ── 2. Upload payment screenshot to Supabase Storage ──
       const fileName = `${bookingRef}-${Date.now()}-${form.screenshotName}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("payments")
         .upload(`screenshots/${fileName}`, dataURLtoFile(form.screenshot, fileName));
-
-      if (uploadError) throw new Error(`Screenshot upload failed: ${uploadError.message}`);
-
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
       const imageUrl = `https://fbczqcuuqtiaibffsnws.supabase.co/storage/v1/object/public/payments/${uploadData.path}`;
-
-      // ── 3. Insert booking row into Supabase ──
       const { error: dbError } = await supabase.from("students").insert([{
-        booking_ref:    bookingRef,
-        name:           form.name.trim(),
-        email:          form.email.trim() || null,
-        phone:          form.phone.trim(),
-        screenshot_url: imageUrl,
-        payment_status: "pending",
-        college:        form.college.trim(),
-        roll_no:        form.rollNo.trim() || null,
-        utr:            form.utr.trim(),
-        center:         form.centerId,
-        exam_date:      form.date,
-        slot:           form.slotId,
-        group_size:     form.groupSize,
-        price:          totalAmt,
+        booking_ref: bookingRef,
+        name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim(),
+        screenshot_url: imageUrl, payment_status: "pending",
+        college: form.college.trim(), roll_no: form.rollNo.trim() || null,
+        utr: form.utr.trim(), center: form.centerId, exam_date: form.date,
+        slot: form.slotId, group_size: form.groupSize, price: totalAmt,
       }]);
-
-      if (dbError) throw new Error(`Booking save failed: ${dbError.message}`);
-
-      // ── 4. Build confirmation object for the success screen ──
-      const confirmedBooking = {
-        id:         bookingRef,
-        name:       form.name.trim(),
-        phone:      form.phone.trim(),
-        college:    form.college.trim(),
-        centerName: center.name,
-        centerCity: center.city,
-        date:       form.date,
-        slotLabel:  slot.label,
-        groupSize:  form.groupSize,
-        price:      totalAmt,
-      };
-
-      setLoading(false);
-      onConfirm(confirmedBooking); // ← navigate to Confirmation screen
-
+      if (dbError) {
+        if (dbError.code === "23505" && dbError.message.includes("unique_utr"))
+          throw new Error("This UTR has already been used. Please provide a valid transaction reference.");
+        throw new Error(`Save failed: ${dbError.message}`);
+      }
+      onConfirm({
+        id: bookingRef, name: form.name.trim(), phone: form.phone.trim(),
+        college: form.college.trim(), centerName: center.name, centerCity: center.city,
+        date: form.date, slotLabel: slot.label, groupSize: form.groupSize, price: totalAmt,
+      });
     } catch (err) {
-      console.error("Booking error:", err);
+      console.error(err);
       setLoading(false);
-      setSubmitError(err.message || "Something went wrong. Please try again.");
+      setSubmitError(err.message || "An unexpected error occurred.");
     }
   };
 
   return (
-    <div style={{ minHeight: "100vh" }}>
-      {/* Header */}
-      <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--b)", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, background: "rgba(7,11,20,0.95)", backdropFilter: "blur(16px)", zIndex: 10 }}>
-        <button className="btn btn-glass btn-sm" onClick={onBack}>{I.arrowLeft} Back</button>
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      {/* Sticky Header */}
+      <div style={{
+        padding: "14px 24px", borderBottom: "1px solid var(--b)",
+        display: "flex", alignItems: "center", gap: 16,
+        position: "sticky", top: 0,
+        background: "rgba(0,0,0,0.65)", backdropFilter: "blur(24px)",
+        zIndex: 100,
+      }}>
+        <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ gap: 8 }}>{I.arrowLeft} Back</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15 }}>Book Your Seat</div>
-          <div style={{ fontSize: 11, color: "var(--t3)" }}>{settings.brandName} · NPTEL May 2025</div>
+          <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 15, color: "#fff", letterSpacing: -0.3 }}>{settings.brandName}</div>
+          <div style={{ fontSize: 10, color: "var(--t4)", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>Booking Engine · Secure</div>
         </div>
         {center && (
-          <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 18, color: "var(--a)" }}>₹{totalAmt}</span>
-            <span style={{ fontSize: 10, color: "var(--t3)" }}>total fare</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, letterSpacing: 0.5 }}>TOTAL DUE</div>
+              <div style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 22, color: "var(--a)", lineHeight: 1 }}>₹{totalAmt}</div>
+            </div>
           </div>
         )}
       </div>
 
-      <div style={{ maxWidth: 560, margin: "24px auto 0", padding: "0 20px 60px" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "28px 16px 100px" }}>
         {/* Stepper */}
-        <div className="stepper">
+        <div className="stepper" style={{ marginBottom: 44 }}>
           {STEPS.map((s, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
               <div className={`step-item step-${step > i + 1 ? "done" : step === i + 1 ? "active" : "idle"}`}>
                 <div className="step-circle">{step > i + 1 ? "✓" : i + 1}</div>
-                <div className="step-label">{s}</div>
+                <div className="step-label" style={{ fontWeight: step === i + 1 ? 700 : 500 }}>{s}</div>
               </div>
               {i < STEPS.length - 1 && <div className={`step-line ${step > i + 1 ? "done" : ""}`} />}
             </div>
           ))}
         </div>
 
-        {/* ── STEP 1: ROUTE ── */}
+        {/* ── STEP 1: SELECTION ── */}
         {step === 1 && (
           <div key="s1" className="anim-fadeup">
-            <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Choose Your Route</h3>
-            <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 20 }}>Select exam center, date and preferred time slot</p>
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Choose Route & Slot</h2>
+              <p style={{ fontSize: 14, color: "var(--t3)" }}>Select your exam center, journey date, and preferred departure window.</p>
+            </div>
 
-            {/* Center */}
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Exam Center</div>
-              <div style={{ display: "grid", gap: 8 }}>
+            {/* Center Selection */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>1. Exam Center</div>
+              <div style={{ display: "grid", gap: 10 }}>
                 {settings.centers.map((c) => {
-                  const left = form.date && form.slotId
-                    ? settings.seatsPerSlot - usedSeats(bookings, c.id, form.date, form.slotId)
-                    : null;
+                  const left = form.date && form.slotId ? settings.seatsPerSlot - usedSeats(seatCounts, c.id, form.date, form.slotId) : null;
                   const full = left !== null && left <= 0;
+                  const isSelected = form.centerId === c.id;
                   return (
-                    <div key={c.id} className={`choice${form.centerId === c.id ? " active" : ""}${full ? " disabled" : ""}`} onClick={() => !full && sf("centerId", c.id)}>
+                    <div
+                      key={c.id}
+                      className={`choice ${isSelected ? "active" : ""}${full ? " disabled" : ""}`}
+                      onClick={() => !full && sf("centerId", c.id)}
+                      style={{ padding: "18px 20px" }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{c.name}</div>
-                          <div style={{ fontSize: 12, color: "var(--t3)", display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, fontSize: 15.5, marginBottom: 4, color: isSelected ? "var(--a)" : "#fff" }}>{c.name}</div>
+                          <div style={{ fontSize: 12, color: "var(--t3)", display: "flex", alignItems: "center", gap: 6 }}>
                             {I.map} {c.city} · {c.address}
                           </div>
                           {left !== null && (
-                            <div style={{ fontSize: 11, marginTop: 4, color: left <= 5 && left > 0 ? "#FBBF24" : left <= 0 ? "var(--red)" : "var(--green)", display: "flex", alignItems: "center", gap: 4 }}>
-                              {I.seat} {left <= 0 ? "Fully Booked" : left <= 5 ? `⚡ Only ${left} seats left` : `${left} seats available`}
+                            <div style={{
+                              fontSize: 11, marginTop: 10, fontWeight: 700,
+                              color: left <= 0 ? "var(--red)" : left <= 5 ? "#FBBF24" : "var(--green)",
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              background: "rgba(255,255,255,0.03)", padding: "4px 10px",
+                              borderRadius: 100, border: "1px solid rgba(255,255,255,0.06)"
+                            }}>
+                              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", boxShadow: "0 0 6px currentColor" }} />
+                              {left <= 0 ? "SOLD OUT" : left <= 5 ? `${left} SEATS LEFT` : `${left} AVAILABLE`}
                             </div>
                           )}
                         </div>
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 22, color: form.centerId === c.id ? "var(--a)" : "var(--t)", lineHeight: 1 }}>₹{c.price}</div>
-                          <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>per seat</div>
+                        <div style={{ textAlign: "right", marginLeft: 20 }}>
+                          <div style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 22, color: isSelected ? "var(--a)" : "#fff" }}>₹{c.price}</div>
+                          <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, letterSpacing: 1 }}>PER SEAT</div>
                         </div>
                       </div>
                     </div>
@@ -183,33 +179,35 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
               </div>
             </div>
 
-            {/* Date */}
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Exam Date</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 }}>
+            {/* Date Selection */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>2. Journey Date</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 10 }}>
                 {settings.dates.map((d) => (
-                  <div key={d} className={`choice${form.date === d ? " active" : ""}`} onClick={() => sf("date", d)} style={{ textAlign: "center", padding: "12px 10px" }}>
-                    <div style={{ fontSize: 18, marginBottom: 2 }}>📅</div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{fmtDate(d).split(",")[0]}</div>
-                    <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 1 }}>{fmtDate(d).split(",").slice(1).join(",").trim()}</div>
+                  <div key={d} className={`choice ${form.date === d ? "active" : ""}`} onClick={() => sf("date", d)} style={{ textAlign: "center", padding: "16px 12px" }}>
+                    <div style={{ fontWeight: 800, fontSize: 14.5, color: form.date === d ? "var(--a)" : "#fff" }}>{fmtDate(d).split(",")[0]}</div>
+                    <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4, fontWeight: 600 }}>{fmtDate(d).split(",").slice(1).join(",").trim()}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Slot */}
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Time Slot</div>
-              <div style={{ display: "grid", gap: 8 }}>
+            {/* Slot Selection */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>3. Departure Slot</div>
+              <div style={{ display: "grid", gap: 10 }}>
                 {settings.slots.map((s) => (
-                  <div key={s.id} className={`choice${form.slotId === s.id ? " active" : ""}`} onClick={() => sf("slotId", s.id)}>
+                  <div key={s.id} className={`choice ${form.slotId === s.id ? "active" : ""}`} onClick={() => sf("slotId", s.id)} style={{ padding: "16px 20px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{s.label}</div>
-                        <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>{I.clock} {s.time}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{ color: form.slotId === s.id ? "var(--a)" : "var(--t3)" }}>{I.clock}</div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: 14.5, color: form.slotId === s.id ? "var(--a)" : "#fff" }}>{s.label}</div>
+                          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{s.time}</div>
+                        </div>
                       </div>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${form.slotId === s.id ? "var(--a)" : "var(--b2)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {form.slotId === s.id && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--a)" }} />}
+                      <div className={`radio-outer ${form.slotId === s.id ? "checked" : ""}`}>
+                        <div className="radio-inner" />
                       </div>
                     </div>
                   </div>
@@ -217,61 +215,77 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
               </div>
             </div>
 
-            {/* Group size */}
+            {/* Group Size */}
             {ok1 && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Number of Seats</div>
-                <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ marginBottom: 36 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>4. Number of Seats</div>
+                <div style={{ display: "flex", gap: 10 }}>
                   {[1, 2, 3, 4].map((n) => (
-                    <div key={n} className={`choice${form.groupSize === n ? " active" : ""}`} style={{ flex: 1, textAlign: "center", padding: "10px 6px" }} onClick={() => sf("groupSize", n)}>
-                      <div style={{ fontWeight: 700, fontSize: 17 }}>{n}</div>
-                      <div style={{ fontSize: 10, color: "var(--t3)" }}>seat{n > 1 ? "s" : ""}</div>
+                    <div
+                      key={n}
+                      className={`choice ${form.groupSize === n ? "active" : ""}`}
+                      style={{ flex: 1, textAlign: "center", padding: "14px 10px" }}
+                      onClick={() => sf("groupSize", n)}
+                    >
+                      <div style={{ fontWeight: 900, fontSize: 22, color: form.groupSize === n ? "var(--a)" : "#fff" }}>{n}</div>
+                      <div style={{ fontSize: 9.5, color: "var(--t3)", fontWeight: 700, marginTop: 4 }}>SEAT{n > 1 ? "S" : ""}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 8, padding: "8px 12px", background: "rgba(249,115,22,0.06)", borderRadius: 8, textAlign: "center" }}>
-                  Total: <strong style={{ color: "var(--a)" }}>₹{center?.price * form.groupSize}</strong> for {form.groupSize} seat{form.groupSize > 1 ? "s" : ""}
-                </div>
+                {center && (
+                  <div style={{ marginTop: 14, padding: "12px 16px", background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 13, color: "var(--t2)", fontWeight: 600 }}>{form.groupSize} × ₹{center.price}</span>
+                    <span style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 20, color: "var(--a)" }}>= ₹{totalAmt}</span>
+                  </div>
+                )}
               </div>
             )}
 
-            <button className="btn btn-primary" style={{ width: "100%", padding: 14, fontSize: 15 }} disabled={!ok1} onClick={() => setStep(2)}>
-              Continue to Details {I.arrow}
+            <button className="btn btn-primary" style={{ width: "100%", padding: "17px 24px", fontSize: 15.5, borderRadius: 14 }} disabled={!ok1} onClick={() => setStep(2)}>
+              Confirm Selection {I.arrow}
             </button>
           </div>
         )}
 
-        {/* ── STEP 2: PERSONAL DETAILS ── */}
+        {/* ── STEP 2: IDENTITY ── */}
         {step === 2 && (
           <div key="s2" className="anim-fadeup">
-            <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Your Details</h3>
-            <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 20 }}>We need these details to confirm your seat</p>
-
-            {/* Summary pill */}
-            <div style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, fontSize: 12 }}>
-              <span style={{ color: "var(--t2)" }}>{center?.name} · {fmtDate(form.date)}</span>
-              <span style={{ color: "var(--t2)" }}>{slot?.label} · <strong style={{ color: "var(--a)" }}>₹{totalAmt}</strong></span>
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Passenger Details</h2>
+              <p style={{ fontSize: 14, color: "var(--t3)" }}>Required for boarding verification. Your data is secure and private.</p>
             </div>
 
-            <div className="card">
+            <div className="card" style={{ padding: 26, marginBottom: 20 }}>
               {[
-                { k: "name",    l: "Full Name",                 p: "Your full name",             t: "text",  req: true },
-                { k: "phone",   l: "WhatsApp / Phone No.",      p: "10-digit mobile number",     t: "tel",   req: true },
-                { k: "email",   l: "Email Address",             p: "your@email.com",             t: "email", req: false },
-                { k: "college", l: "College / Institution",     p: "e.g. DAV College, Amritsar", t: "text",  req: true },
-                { k: "rollNo",  l: "Roll No. / Enrollment No.", p: "e.g. 2021CS001",             t: "text",  req: false },
+                { k: "name", l: "Full Name", p: "As per your ID card", t: "text", req: true },
+                { k: "phone", l: "WhatsApp Number", p: "10-digit mobile", t: "tel", req: true },
+                { k: "email", l: "Email (Optional)", p: "your@university.edu", t: "email", req: false },
+                { k: "college", l: "College / University", p: "Institution name", t: "text", req: true },
+                { k: "rollNo", l: "Roll / Enrollment No.", p: "University roll number", t: "text", req: true },
               ].map((f) => (
-                <div className="field" key={f.k}>
-                  <label>{f.l}{f.req && <span style={{ color: "var(--a)", marginLeft: 2 }}>*</span>}</label>
-                  <input className="inp" type={f.t} placeholder={f.p} value={form[f.k]} onChange={(e) => sf(f.k, e.target.value)} />
+                <div className="field" key={f.k} style={{ marginBottom: 18 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <label style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>{f.l}</label>
+                    {f.req && <span style={{ fontSize: 9.5, color: "var(--a)", fontWeight: 800 }}>REQUIRED</span>}
+                  </div>
+                  {f.k === "phone" ? (
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <div className="inp" style={{ width: 76, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--t3)", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", padding: "0 12px" }}>
+                        🇮🇳 +91
+                      </div>
+                      <input className="inp" style={{ flex: 1 }} type="tel" maxLength={10} placeholder="0000000000" value={form.phone} onChange={(e) => sf("phone", e.target.value.replace(/\D/g, ""))} />
+                    </div>
+                  ) : (
+                    <input className="inp" type={f.t} placeholder={f.p} value={form[f.k]} onChange={(e) => sf(f.k, f.k === "rollNo" ? e.target.value.toUpperCase().replace(/\s/g, "") : e.target.value)} />
+                  )}
                 </div>
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              <button className="btn btn-ghost" style={{ minWidth: 90 }} onClick={() => setStep(1)}>{I.arrowLeft} Back</button>
-              <button className="btn btn-primary" style={{ flex: 1, padding: 14 }} disabled={!ok2} onClick={() => setStep(3)}>
-                Continue to Payment {I.arrow}
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(1)}>{I.arrowLeft} Back</button>
+              <button className="btn btn-primary" style={{ flex: 2, padding: "17px 24px", fontSize: 15, borderRadius: 14 }} disabled={!ok2} onClick={() => setStep(3)}>
+                Proceed to Payment {I.arrow}
               </button>
             </div>
           </div>
@@ -280,133 +294,157 @@ export function BookingFlow({ settings, bookings, onConfirm, onBack }) {
         {/* ── STEP 3: PAYMENT ── */}
         {step === 3 && (
           <div key="s3" className="anim-fadeup">
-            <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Make Payment</h3>
-            <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 20 }}>Pay via UPI and take a screenshot — you'll need it in the next step</p>
-
-            {/* Amount card */}
-            <div style={{ background: "linear-gradient(135deg,rgba(249,115,22,0.12),rgba(251,191,36,0.06))", border: "1px solid rgba(249,115,22,0.2)", borderRadius: 16, padding: "20px", marginBottom: 14, textAlign: "center" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Amount to Pay</div>
-              <div style={{ fontFamily: "var(--font-head)", fontSize: 52, fontWeight: 900, color: "var(--a)", lineHeight: 1, letterSpacing: -1 }}>₹{totalAmt}</div>
-              <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 6 }}>{center?.name} · {form.groupSize} seat{form.groupSize > 1 ? "s" : ""}</div>
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Secure Payment</h2>
+              <p style={{ fontSize: 14, color: "var(--t3)" }}>Pay via UPI to lock in your seat. Takes just 30 seconds.</p>
             </div>
 
-            {/* UPI Card */}
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: "linear-gradient(135deg,#F97316,#FBBF24)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "#fff" }}>{I.upi}</span>
+            {/* Amount card */}
+            <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 22, padding: "32px 28px", marginBottom: 22, textAlign: "center", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--a)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Amount Payable</div>
+              <div style={{ fontFamily: "var(--font-head)", fontSize: 64, fontWeight: 900, color: "#fff", lineHeight: 1, letterSpacing: -3 }}>₹{totalAmt}</div>
+              <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 12, fontWeight: 600 }}>
+                {center?.name} · {form.groupSize} Seat{form.groupSize > 1 ? "s" : ""}
+              </div>
+            </div>
+
+            {/* UPI card */}
+            <div className="card" style={{ padding: 24, marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>{I.upi}</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14.5, color: "#fff" }}>UPI Payment</div>
+                  <div style={{ fontSize: 11, color: "var(--t3)" }}>PhonePe · GPay · Paytm</div>
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>Pay via UPI</span>
               </div>
 
-              <div style={{ background: "var(--c2)", borderRadius: 10, padding: 14, marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>UPI ID</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 16, color: "var(--a)", letterSpacing: 0.5 }}>{settings.upiId}</div>
-                  <button className="btn btn-glass btn-sm" onClick={() => { navigator.clipboard?.writeText(settings.upiId); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+              <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 14, padding: "16px 18px", marginBottom: 18, border: "1px solid var(--b)" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>UPI ID</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 17, color: "var(--a)" }}>{settings.upiId}</div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => { navigator.clipboard?.writeText(settings.upiId); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                  >
                     {copied ? "✓ Copied" : <>{I.copy} Copy</>}
                   </button>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 6 }}>Pay to: <strong style={{ color: "var(--t2)" }}>{settings.upiName}</strong></div>
+                <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 8, fontWeight: 500 }}>Recipient: {settings.upiName}</div>
               </div>
 
-              {/* QR Code — shown when admin has uploaded one */}
               {settings.upiQr && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0", borderTop: "1px solid var(--b)", borderBottom: "1px solid var(--b)", margin: "12px 0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6 }}>Scan QR to Pay</div>
-                  <div style={{ background: "#fff", padding: 10, borderRadius: 12, display: "inline-flex", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
-                    <img src={settings.upiQr} alt="UPI QR Code" style={{ width: 160, height: 160, display: "block", borderRadius: 6 }} />
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "20px 0", borderTop: "1px solid var(--b)", borderBottom: "1px solid var(--b)", margin: "0 0 18px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5 }}>Scan QR Code</div>
+                  <div style={{ background: "#fff", padding: 12, borderRadius: 16, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
+                    <img src={settings.upiQr} alt="QR" style={{ width: 176, height: 176, display: "block" }} />
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--t3)", textAlign: "center" }}>Open your payment app → Scan QR → Pay <strong style={{ color: "var(--a)" }}>₹{totalAmt}</strong></div>
+                  <p style={{ fontSize: 12, color: "var(--t3)", textAlign: "center", maxWidth: 240 }}>Scan using any UPI app to pay instantly.</p>
                 </div>
               )}
 
-              {/* Instructions */}
-              <div style={{ fontSize: 12.5, color: "var(--t2)", lineHeight: 1.85 }}>
+              <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.8 }}>
                 {settings.instructions.split("\n").map((line, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 2 }}>
-                    <span style={{ color: "var(--a)", fontWeight: 700, flexShrink: 0 }}>{line.match(/^\d/) ? "" : ""}</span>
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+                    <span style={{ color: "var(--a)", fontWeight: 800, minWidth: 12 }}>›</span>
                     <span>{line}</span>
                   </div>
                 ))}
               </div>
-
             </div>
 
-            <div style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12.5, color: "#93C5FD", display: "flex", gap: 8 }}>
-              {I.info}
-              <span>After paying, take a <strong>screenshot of the success screen</strong>. You'll upload it in the next step to confirm your booking.</span>
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-ghost" style={{ minWidth: 90 }} onClick={() => setStep(2)}>{I.arrowLeft} Back</button>
-              <button className="btn btn-primary" style={{ flex: 1, padding: 14 }} onClick={() => setStep(4)}>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(2)}>{I.arrowLeft} Back</button>
+              <button className="btn btn-primary" style={{ flex: 2, padding: "17px 24px", fontSize: 15, borderRadius: 14 }} onClick={() => setStep(4)}>
                 I've Paid · Upload Proof {I.arrow}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 4: UPLOAD PROOF ── */}
+        {/* ── STEP 4: VERIFY ── */}
         {step === 4 && (
           <div key="s4" className="anim-fadeup">
-            <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Upload Payment Proof</h3>
-            <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 20 }}>Upload the screenshot and enter your transaction ID to complete booking</p>
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Confirm Payment</h2>
+              <p style={{ fontSize: 14, color: "var(--t3)" }}>Upload your payment screenshot and enter the transaction ID.</p>
+            </div>
 
-            {/* Upload zone */}
+            {/* Upload Zone */}
             <div
-              className={`upload-zone${drag ? " drag" : ""}${form.screenshot ? " has-file" : ""}`}
-              style={{ marginBottom: 14 }}
+              className={`upload-zone ${drag ? "drag" : ""} ${form.screenshot ? "has-file" : ""}`}
+              style={{ padding: "44px 24px", marginBottom: 20 }}
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
               onDragLeave={() => setDrag(false)}
               onDrop={(e) => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
               onClick={() => fileRef.current?.click()}
             >
               {form.screenshot ? (
-                <div>
-                  <img src={form.screenshot} alt="proof" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 10, marginBottom: 10, boxShadow: "0 4px 24px rgba(0,0,0,0.4)" }} />
-                  <div style={{ fontSize: 13, color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                <div style={{ textAlign: "center" }}>
+                  <img src={form.screenshot} alt="proof" style={{ maxWidth: 200, maxHeight: 280, borderRadius: 14, marginBottom: 16, boxShadow: "0 20px 48px rgba(0,0,0,0.6)" }} />
+                  <div style={{ fontSize: 13.5, color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     {I.checkCircle} {form.screenshotName}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 4 }}>Tap to change image</div>
+                  <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 8, fontWeight: 700, letterSpacing: 1 }}>TAP TO CHANGE</div>
                 </div>
               ) : (
-                <div>
-                  <div style={{ color: "var(--t3)", marginBottom: 12, display: "flex", justifyContent: "center" }}>{I.upload}</div>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Tap to upload screenshot</div>
-                  <div style={{ fontSize: 12, color: "var(--t3)" }}>or drag & drop here · JPG, PNG</div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ color: "var(--a)", marginBottom: 14, fontSize: 32 }}>{I.upload}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15.5, color: "#fff", marginBottom: 8 }}>Drop screenshot here</div>
+                  <div style={{ fontSize: 13, color: "var(--t3)" }}>PNG or JPG · Tap to browse</div>
                 </div>
               )}
             </div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
 
-            <div className="card" style={{ marginBottom: 14 }}>
+            {/* UTR Input */}
+            <div className="card" style={{ padding: 22, marginBottom: 20 }}>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label>UTR / Transaction Reference Number <span style={{ color: "var(--a)" }}>*</span></label>
-                <input className="inp" placeholder="e.g. 412301230456" value={form.utr} onChange={(e) => sf("utr", e.target.value)} />
-                <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 5 }}>Find this in your payment app → transaction history → reference/UTR number</div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <label style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>UTR / Transaction ID</label>
+                  <span style={{ fontSize: 9.5, color: "var(--a)", fontWeight: 800 }}>12 DIGITS</span>
+                </div>
+                <input
+                  className="inp"
+                  placeholder="e.g. 412301230456"
+                  value={form.utr}
+                  maxLength={12}
+                  onChange={(e) => sf("utr", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                  style={{ fontSize: 20, fontFamily: "var(--font-mono)", padding: 16, letterSpacing: 3, textAlign: "center" }}
+                />
+                <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 10, lineHeight: 1.5 }}>
+                  Found in your bank app under "Transaction Reference" or "UTR Number."
+                </div>
               </div>
             </div>
 
-            {/* Inline error message */}
+            {/* Turnstile */}
+            <div style={{ marginBottom: 20 }}>
+              <Turnstile
+                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+                onSuccess={(token) => setTurnstileToken(token)}
+                onError={() => setTurnstileToken("")}
+                options={{ theme: "dark" }}
+              />
+            </div>
+
+            {/* Error */}
             {submitError && (
-              <div style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: "#F87171", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                <span style={{ flexShrink: 0, marginTop: 1 }}>{I.x}</span>
+              <div style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", borderRadius: 14, padding: "14px 18px", marginBottom: 18, fontSize: 13.5, color: "#F87171", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontWeight: 800, flexShrink: 0 }}>{I.x}</span>
                 <span>{submitError}</span>
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-ghost" style={{ minWidth: 90 }} onClick={() => setStep(3)} disabled={loading}>{I.arrowLeft} Back</button>
-              <button className="btn btn-primary" style={{ flex: 1, padding: 14 }} disabled={!ok4 || loading} onClick={submit}>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(3)} disabled={loading}>{I.arrowLeft} Back</button>
+              <button className="btn btn-primary" style={{ flex: 3, padding: "17px 24px", fontSize: 15, borderRadius: 14 }} disabled={!ok4 || loading} onClick={submit}>
                 {loading ? (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                      <circle cx="12" cy="12" r="10" opacity=".3" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
-                    </svg>
-                    Saving your booking…
-                  </span>
-                ) : <>{I.check} Confirm Booking</>}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                    <div className="spinner-sm" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.2)" }} />
+                    Securing Your Seat...
+                  </div>
+                ) : <>{I.check} Finalize Booking</>}
               </button>
             </div>
           </div>

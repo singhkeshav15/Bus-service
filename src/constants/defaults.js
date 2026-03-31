@@ -9,7 +9,6 @@ export const DEFAULT_SETTINGS = {
   upiId: "mkbusservice@paytm",
   upiName: "MK Bus Service",
   upiQr: "",
-  adminPass: "mk@admin",
   seatsPerSlot: 50,
   whatsapp: "919876543210",
   supportPhone: "9876543210",

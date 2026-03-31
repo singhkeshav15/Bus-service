@@ -13,7 +13,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const [gen, setGen] = useState({
     brandName: settings.brandName, tagline: settings.tagline,
     upiId: settings.upiId, upiName: settings.upiName, upiQr: settings.upiQr || "",
-    adminPass: settings.adminPass, seatsPerSlot: settings.seatsPerSlot,
+    seatsPerSlot: settings.seatsPerSlot,
     whatsapp: settings.whatsapp, supportPhone: settings.supportPhone,
     announcement: settings.announcement, announcementOn: settings.announcementOn,
     instructions: settings.instructions, footerNote: settings.footerNote,
@@ -145,13 +145,13 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     <div style={{ minHeight: "100vh" }}>
       {/* Admin Nav */}
       <nav className="nav" style={{ gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#F97316,#FBBF24)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#fff", transform: "scale(.85)" }}>{I.bus}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--a)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}>
+            <span style={{ color: "#fff", transform: "scale(.9)" }}>{I.bus}</span>
           </div>
           <div>
-            <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 14 }}>{settings.brandName}</div>
-            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, letterSpacing: 0.5, lineHeight: 1 }}>ADMIN PANEL</div>
+            <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 15, color: "#fff" }}>{settings.brandName}</div>
+            <div style={{ fontSize: 9, color: "var(--a)", fontWeight: 800, letterSpacing: 1.5, lineHeight: 1, textTransform: "uppercase" }}>Admin Console</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -160,7 +160,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               {t.ic} {t.l}
             </button>
           ))}
-          <button className="btn btn-glass btn-sm" onClick={onLogout}>Logout</button>
+          <button className="btn btn-glass btn-sm" onClick={async () => {
+            await supabase.auth.signOut();
+            onLogout();
+          }} style={{ color: "var(--red)" }}>Logout</button>
         </div>
       </nav>
 
@@ -175,18 +178,18 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
             </div>
 
             {/* Stats grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 12, marginBottom: 24 }}>
               {[
-                { l: "Total Bookings", v: stats.total,    sub: "All time",       c: "var(--a)",      bg: "rgba(249,115,22,0.08)",   bc: "rgba(249,115,22,0.2)" },
-                { l: "Pending Review", v: stats.pending,  sub: "Needs action",   c: "#FBBF24",        bg: "rgba(251,191,36,0.08)",   bc: "rgba(251,191,36,0.2)" },
-                { l: "Confirmed",      v: stats.approved, sub: "Approved seats", c: "var(--green)",  bg: "rgba(16,185,129,0.08)",   bc: "rgba(16,185,129,0.2)" },
-                { l: "Revenue",        v: `₹${stats.revenue.toLocaleString("en-IN")}`, sub: "From approved", c: "var(--purple)", bg: "rgba(139,92,246,0.08)", bc: "rgba(139,92,246,0.2)" },
-                { l: "Today",          v: stats.today,    sub: "New bookings",   c: "var(--blue)",   bg: "rgba(59,130,246,0.08)",   bc: "rgba(59,130,246,0.2)" },
-                { l: "Rejected",       v: stats.rejected, sub: "Declined",       c: "var(--red)",    bg: "rgba(244,63,94,0.08)",    bc: "rgba(244,63,94,0.2)" },
+                { l: "Total",    v: stats.total,    sub: "All bookings",    c: "var(--a)",      bc: "rgba(99,102,241,0.2)" },
+                { l: "Pending",  v: stats.pending,  sub: "Needs review",    c: "#FBBF24",       bc: "rgba(251,191,36,0.2)" },
+                { l: "Approved", v: stats.approved, sub: "Confirmed seats", c: "var(--green)",  bc: "rgba(16,185,129,0.2)" },
+                { l: "Revenue",  v: `₹${stats.revenue.toLocaleString("en-IN")}`, sub: "Gross collected", c: "#a78bfa", bc: "rgba(139,92,246,0.2)" },
+                { l: "Today",    v: stats.today,    sub: "New today",       c: "#60a5fa",      bc: "rgba(59,130,246,0.2)" },
+                { l: "Rejected", v: stats.rejected, sub: "Declined",        c: "var(--red)",   bc: "rgba(244,63,94,0.2)" },
               ].map((s, i) => (
-                <div key={i} className="stat-card anim-fadeup" style={{ animationDelay: `${i * 0.06}s`, borderColor: s.bc, background: `linear-gradient(135deg,${s.bg},transparent)` }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{s.l}</div>
-                  <div style={{ fontFamily: "var(--font-head)", fontSize: 28, fontWeight: 800, color: s.c, lineHeight: 1, marginBottom: 4 }}>
+                <div key={i} className="stat-card anim-fadeup" style={{ animationDelay: `${i * 0.06}s`, borderColor: s.bc }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>{s.l}</div>
+                  <div style={{ fontFamily: "var(--font-head)", fontSize: 30, fontWeight: 800, color: s.c, lineHeight: 1, marginBottom: 6 }}>
                     {typeof s.v === "number" ? <Counter target={s.v} /> : s.v}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--t3)" }}>{s.sub}</div>
@@ -196,12 +199,12 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
             {/* Pending alert */}
             {stats.pending > 0 && (
-              <div className="anim-fadeup" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#FBBF24", fontWeight: 600 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FBBF24", animation: "pulse 1.5s ease-in-out infinite" }} />
-                  {stats.pending} booking{stats.pending > 1 ? "s" : ""} waiting for payment verification
+              <div className="anim-fadeup" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 16, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#FBBF24", fontWeight: 700 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FBBF24", boxShadow: "0 0 8px #FBBF24", animation: "pulse 1.5s ease-in-out infinite" }} />
+                  {stats.pending} booking{stats.pending > 1 ? "s" : ""} awaiting payment verification
                 </div>
-                <button className="btn btn-sm" style={{ background: "rgba(251,191,36,0.15)", color: "#FBBF24", border: "1px solid rgba(251,191,36,0.25)" }} onClick={() => { setFil((f) => ({ ...f, status: "pending" })); setTab("bookings"); }}>
+                <button className="btn btn-sm" style={{ background: "rgba(251,191,36,0.1)", color: "#FBBF24", border: "1px solid rgba(251,191,36,0.2)", padding: "8px 16px" }} onClick={() => { setFil((f) => ({ ...f, status: "pending" })); setTab("bookings"); }}>
                   Review Now {I.arrow}
                 </button>
               </div>
@@ -279,7 +282,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
             </div>
 
             {/* Filters */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14 }}>
+            <div className="filter-grid">
               <input className="inp" placeholder="Search name, phone, ID, college…" value={filter.q} onChange={(e) => setFil((f) => ({ ...f, q: e.target.value }))} />
               <select className="inp" value={filter.status} onChange={(e) => setFil((f) => ({ ...f, status: e.target.value }))} style={{ minWidth: 130 }}>
                 <option value="">All Status</option>
@@ -344,7 +347,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               {/* Brand */}
               <div className="card">
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 16, display: "flex", alignItems: "center", gap: 7 }}>🎨 Brand & Content</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="settings-grid-2">
                   {[
                     { k: "brandName",    l: "Brand / Business Name",             p: "MK Bus Service" },
                     { k: "tagline",      l: "Tagline / Subtitle",                 p: "Your Trusted Exam Partner" },
@@ -383,7 +386,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               {/* Payment */}
               <div className="card">
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 16, display: "flex", alignItems: "center", gap: 7 }}>💳 Payment Settings</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div className="settings-grid-2" style={{ marginBottom: 12 }}>
                   {[
                     { k: "upiId",   l: "UPI ID",           p: "yourname@paytm" },
                     { k: "upiName", l: "UPI Display Name",  p: "MK Bus Service" },
@@ -421,17 +424,13 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 </div>
               </div>
 
-              {/* Admin Access */}
+              {/* Admin Access & Limits */}
               <div className="card">
-                <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 16, display: "flex", alignItems: "center", gap: 7 }}>🔐 Admin Access</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 16, display: "flex", alignItems: "center", gap: 7 }}>🔐 Admin Settings</div>
+                <div className="settings-grid-2">
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Max Seats Per Slot</label>
                     <input className="inp" type="number" min="1" value={gen.seatsPerSlot} onChange={(e) => setGen((g) => ({ ...g, seatsPerSlot: +e.target.value }))} />
-                  </div>
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label>Change Admin Password</label>
-                    <input className="inp" type="text" placeholder="New password" value={gen.adminPass} onChange={(e) => setGen((g) => ({ ...g, adminPass: e.target.value }))} />
                   </div>
                 </div>
               </div>
@@ -441,7 +440,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14, display: "flex", alignItems: "center", gap: 7 }}>🏫 Exam Centers & Fares</div>
                 <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
                   {ctrs.map((c, i) => (
-                    <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px auto", gap: 8, alignItems: "center", background: "var(--c2)", borderRadius: 10, padding: "10px 12px", border: "1px solid var(--b)" }}>
+                    <div key={c.id} className="centers-row" style={{ background: "var(--c2)", borderRadius: 10, padding: "10px 12px", border: "1px solid var(--b)" }}>
                       <input className="inp" value={c.name}  placeholder="Center name" onChange={(e) => setCtrs((cs) => cs.map((x, j) => j === i ? { ...x, name: e.target.value }  : x))} />
                       <input className="inp" value={c.city}  placeholder="City"        onChange={(e) => setCtrs((cs) => cs.map((x, j) => j === i ? { ...x, city: e.target.value }  : x))} />
                       <input className="inp" type="number" value={c.price} placeholder="₹" onChange={(e) => setCtrs((cs) => cs.map((x, j) => j === i ? { ...x, price: +e.target.value } : x))} />
@@ -449,7 +448,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                     </div>
                   ))}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px auto", gap: 8, alignItems: "end" }}>
+                <div className="centers-row" style={{ alignItems: "end" }}>
                   {[{ k: "name", p: "Center name" }, { k: "city", p: "City" }, { k: "price", p: "₹", t: "number" }, { skip: true }].map((f, i) =>
                     f.skip ? (
                       <button key={i} className="btn btn-primary btn-sm" onClick={() => {
@@ -489,14 +488,14 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14, display: "flex", alignItems: "center", gap: 7 }}>🕐 Time Slots</div>
                 <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
                   {sls.map((s, i) => (
-                    <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr auto", gap: 8, background: "var(--c2)", border: "1px solid var(--b)", borderRadius: 10, padding: "10px 12px", alignItems: "center" }}>
+                    <div key={s.id} className="slots-row" style={{ background: "var(--c2)", border: "1px solid var(--b)", borderRadius: 10, padding: "10px 12px", alignItems: "center" }}>
                       <input className="inp" value={s.label} placeholder="Slot name" onChange={(e) => setSls((ss) => ss.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
                       <input className="inp" value={s.time}  placeholder="e.g. Depart 8:00 AM · Return after exam" onChange={(e) => setSls((ss) => ss.map((x, j) => j === i ? { ...x, time: e.target.value } : x))} />
                       <button className="btn btn-danger btn-xs" onClick={() => setSls((ss) => ss.filter((_, j) => j !== i))}>{I.trash}</button>
                     </div>
                   ))}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr auto", gap: 8, alignItems: "end" }}>
+                <div className="slots-row" style={{ alignItems: "end" }}>
                   <div>
                     <label style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 5 }}>Slot Name</label>
                     <input className="inp" placeholder="e.g. Evening Shift" value={newS.label} onChange={(e) => setNewS((n) => ({ ...n, label: e.target.value }))} />
@@ -523,18 +522,18 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
       {/* Booking Detail Modal */}
       {modal && (
-        <div className="overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+        <div className="mask" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 19 }}>{modal.name}</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--a)", marginTop: 3, letterSpacing: 1 }}>{modal.booking_ref || modal.id?.slice(0,8).toUpperCase()}</div>
-                <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{fmtTime(modal.created_at)}</div>
+                <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 22, color: "#fff" }}>{modal.name}</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--a)", marginTop: 6, letterSpacing: 2, fontWeight: 700 }}>{modal.booking_ref || modal.id?.slice(0,8).toUpperCase()}</div>
+                <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 4, fontWeight: 600 }}>{fmtTime(modal.created_at)}</div>
               </div>
-              <span className={`badge badge-${modal.payment_status}`} style={{ fontSize: 12 }}>{modal.payment_status}</span>
+              <span className={`badge badge-${modal.payment_status}`} style={{ fontSize: 11, padding: "6px 14px" }}>{modal.payment_status}</span>
             </div>
 
-            <div style={{ display: "grid", gap: 0, marginBottom: 16, background: "var(--c2)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ display: "grid", gap: 0, marginBottom: 20, background: "rgba(255,255,255,0.02)", borderRadius: 16, overflow: "hidden", border: "1px solid var(--b)" }}>
               {[
                 ["Phone",        modal.phone],
                 ["Email",        modal.email || "—"],
@@ -546,25 +545,25 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 ["Total Amount", modal.price ? `₹${modal.price}` : "—"],
                 ["UTR / Ref",    modal.utr],
               ].map(([k, v], i) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: "1px solid var(--b)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
-                  <span style={{ fontSize: 11.5, color: "var(--t3)", flexShrink: 0 }}>{k}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, textAlign: "right", wordBreak: "break-all" }}>{v}</span>
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 16px", borderBottom: "1px solid var(--b)" }}>
+                  <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.8, flexShrink: 0 }}>{k}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", wordBreak: "break-all", color: "#fff" }}>{v}</span>
                 </div>
               ))}
             </div>
 
             {modal.screenshot_url && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Payment Screenshot</div>
-                <img src={modal.screenshot_url} alt="proof" style={{ width: "100%", borderRadius: 12, border: "1px solid var(--b2)", display: "block" }} />
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Payment Evidence</div>
+                <img src={modal.screenshot_url} alt="proof" style={{ width: "100%", borderRadius: 16, border: "1px solid var(--b)", display: "block" }} />
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {modal.payment_status !== "approved" && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => setStatus(modal.id, "approved")}>{I.check} Approve Booking</button>}
-              {modal.payment_status !== "rejected" && <button className="btn btn-danger"  style={{ flex: 1 }} onClick={() => setStatus(modal.id, "rejected")}>{I.x} Reject</button>}
-              <button className="btn btn-glass" onClick={() => del(modal.id)}>{I.trash}</button>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Close</button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {modal.payment_status !== "approved" && <button className="btn btn-success" style={{ flex: 2 }} onClick={() => setStatus(modal.id, "approved")}>{I.check} Approve</button>}
+              {modal.payment_status !== "rejected" && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setStatus(modal.id, "rejected")}>{I.x} Reject</button>}
+              <button className="btn btn-glass" onClick={() => del(modal.id)} style={{ color: "var(--red)" }}>{I.trash}</button>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>✕</button>
             </div>
           </div>
         </div>
