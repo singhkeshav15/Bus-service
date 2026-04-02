@@ -2,17 +2,7 @@ import I from "../../constants/icons.jsx";
 import { fmtDate } from "../../utils/helpers.js";
 
 export function Confirmation({ booking, settings, onHome }) {
-  const waMsg = encodeURIComponent(
-    `Hi! I just booked a seat with ${settings.brandName} for my NPTEL exam.\n\n` +
-    `🎟️ Booking ID: *${booking.id}*\n` +
-    `👤 Name: ${booking.name}\n` +
-    `🏫 Center: ${booking.centerName}, ${booking.centerCity}\n` +
-    `📅 Date: ${fmtDate(booking.date)}\n` +
-    `🕐 Slot: ${booking.slotLabel}\n` +
-    `💰 Amount Paid: ₹${booking.price}\n\n` +
-    `⏳ Status: Pending Verification\n\n` +
-    `Powered by ${settings.brandName}`
-  );
+  // waMsg removed, admin handles the WhatsApp notification
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -78,11 +68,15 @@ export function Confirmation({ booking, settings, onHome }) {
           ))}
         </div>
 
-        <div className="anim-fadeup d4" style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          <a className="btn btn-success" style={{ justifyContent: "center" }} href={`https://wa.me/${settings.whatsapp}?text=${waMsg}`} target="_blank" rel="noreferrer">
-            {I.wa} Share Booking on WhatsApp
-          </a>
-          <button className="btn btn-ghost" onClick={onHome}>← Back to Home</button>
+        <div className="anim-fadeup d4" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 12, padding: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 20, marginBottom: 8 }}>📸</div>
+            <div style={{ fontSize: 13, color: "#FBBF24", fontWeight: 700, marginBottom: 4 }}>Keep This Safe</div>
+            <div style={{ fontSize: 12, color: "var(--t2)" }}>Please take a screenshot of this page immediately. This serves as your proof of booking!</div>
+          </div>
+          <button className="btn btn-primary" onClick={onHome} style={{ justifyContent: "center", padding: "14px 24px", borderRadius: 12 }}>
+            I've Taken a Screenshot
+          </button>
         </div>
       </div>
     </div>

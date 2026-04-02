@@ -164,7 +164,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
                               borderRadius: 100, border: "1px solid rgba(255,255,255,0.06)"
                             }}>
                               <div style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", boxShadow: "0 0 6px currentColor" }} />
-                              {left <= 0 ? "SOLD OUT" : left <= 5 ? `${left} SEATS LEFT` : `${left} AVAILABLE`}
+                              {left <= 0 ? "SOLD OUT" : left <= 5 ? (settings.showSeatCounts ? `${left} SEATS LEFT` : "FILLING FAST") : (settings.showSeatCounts ? `${left} AVAILABLE` : "AVAILABLE")}
                             </div>
                           )}
                         </div>

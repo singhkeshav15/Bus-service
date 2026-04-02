@@ -12,6 +12,7 @@ import { BookingFlow }    from "./components/booking/BookingFlow.jsx";
 import { Confirmation }   from "./components/booking/Confirmation.jsx";
 import { AdminLogin }     from "./components/admin/AdminLogin.jsx";
 import { AdminDashboard } from "./components/admin/AdminDashboard.jsx";
+import { TicketPass }     from "./components/booking/TicketPass.jsx";
 
 export default function App() {
   /* ── Inject global styles ── */
@@ -42,7 +43,23 @@ export default function App() {
   const [seatCounts, setSeatCounts] = useState([]);   // For Public Availability
   const [session, setSession] = useState(null);       // Auth Session
   const [confirmed, setConfirmed] = useState(null);
+  const [ticketData, setTicketData] = useState(null);
   const [toasts, toast] = useToast();
+
+  const handleCheckStatus = async (bookingRef, phone) => {
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .eq("booking_ref", bookingRef.trim())
+      .eq("phone", phone.trim().replace(/\D/g, ""))
+      .single();
+    if (error || !data) {
+      toast("No booking found with this ID and Phone.", "error");
+      return;
+    }
+    setTicketData(data);
+    setPage("ticket");
+  };
 
   /* ── Auth Session ── */
   useEffect(() => {
@@ -116,9 +133,10 @@ export default function App() {
   return (
     <>
       <div className="dot-bg" />
-      {page === "home"        && <Landing        settings={settings} seatCounts={seatCounts} onBook={() => setPage("book")} onAdmin={() => setPage(session ? "admin" : "admin-login")} />}
+      {page === "home"        && <Landing        settings={settings} seatCounts={seatCounts} onBook={() => setPage("book")} onAdmin={() => setPage(session ? "admin" : "admin-login")} onCheckStatus={handleCheckStatus} />}
       {page === "book"        && <BookingFlow     settings={settings} seatCounts={seatCounts} onBack={() => setPage("home")} onConfirm={(b) => { setPage("confirm"); setConfirmed(b); }} />}
       {page === "confirm"     && <Confirmation    booking={confirmed} settings={settings} onHome={() => setPage("home")} />}
+      {page === "ticket"      && <TicketPass      booking={ticketData} settings={settings} onClose={() => setPage("home")} />}
       {page === "admin-login" && <AdminLogin      settings={settings} onBack={() => setPage("home")} onLogin={() => setPage("admin")} />}
       {page === "admin"       && <AdminDashboard  settings={settings} setSettings={setSettings} bookings={bookings} setBookings={setBookings} onLogout={() => setPage("home")} toast={toast} />}
       <ToastContainer toasts={toasts} />

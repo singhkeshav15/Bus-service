@@ -15,8 +15,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     upiId: settings.upiId, upiName: settings.upiName, upiQr: settings.upiQr || "",
     seatsPerSlot: settings.seatsPerSlot,
     whatsapp: settings.whatsapp, supportPhone: settings.supportPhone,
+    waTemplateApproved: settings.waTemplateApproved || "", waTemplateRejected: settings.waTemplateRejected || "",
     announcement: settings.announcement, announcementOn: settings.announcementOn,
     instructions: settings.instructions, footerNote: settings.footerNote,
+    showSeatCounts: settings.showSeatCounts ?? false,
   });
   const [ctrs, setCtrs] = useState([...settings.centers]);
   const [dts,  setDts]  = useState([...settings.dates]);
@@ -57,6 +59,23 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
         status === "approved" ? "success" : "error"
       );
     }
+  };
+
+  const sendWhatsApp = (b) => {
+    if (!b || !b.phone) {
+      toast("No phone number available", "error");
+      return;
+    }
+    const tmpl = b.payment_status === "approved" ? settings.waTemplateApproved : settings.waTemplateRejected;
+    let text = "";
+    if (tmpl) {
+      text = tmpl.replace(/{name}/g, b.name).replace(/{id}/g, b.booking_ref || b.id?.slice(0,8));
+    } else {
+      text = `Hi ${b.name},\nYour NPTEL Bus Service booking (ID: ${b.booking_ref || b.id?.slice(0,8)}) has been *${b.payment_status?.toUpperCase() || "PENDING"}*.`;
+    }
+    const msg = encodeURIComponent(text);
+    const ph = b.phone.length === 10 ? `91${b.phone}` : b.phone;
+    window.open(`https://wa.me/${ph}?text=${msg}`, "_blank");
   };
 
   /* ── Admin: Delete ── */
@@ -319,8 +338,9 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                         <td>
                           <div style={{ display: "flex", gap: 5 }}>
                             <button className="btn btn-glass btn-xs" onClick={() => setModal(b)} title="View details">{I.eye}</button>
-                            {b.payment_status !== "approved" && <button className="btn btn-success btn-xs" onClick={() => setStatus(b.id, "approved")} title="Approve">{I.check}</button>}
-                            {b.payment_status !== "rejected" && <button className="btn btn-danger btn-xs"  onClick={() => setStatus(b.id, "rejected")} title="Reject">{I.x}</button>}
+                            <button className="btn btn-ghost btn-xs" style={{ color: "#25D366" }} onClick={(e) => { e.stopPropagation(); sendWhatsApp(b); }} title="Notify WhatsApp">{I.wa || "WA"}</button>
+                            {b.payment_status !== "approved" && <button className="btn btn-success btn-xs" onClick={(e) => { e.stopPropagation(); setStatus(b.id, "approved"); }} title="Approve">{I.check}</button>}
+                            {b.payment_status !== "rejected" && <button className="btn btn-danger btn-xs"  onClick={(e) => { e.stopPropagation(); setStatus(b.id, "rejected"); }} title="Reject">{I.x}</button>}
                           </div>
                         </td>
                       </tr>
@@ -360,6 +380,20 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                       <input className="inp" placeholder={f.p} value={gen[f.k] || ""} onChange={(e) => setGen((g) => ({ ...g, [f.k]: e.target.value }))} />
                     </div>
                   ))}
+                </div>
+                {/* WA templates */}
+                <div style={{ padding: "16px 0 0" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--a)", marginBottom: 12 }}>💬 WhatsApp Notification Templates</div>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label style={{ display: "flex", justifyContent: "space-between" }}>Approved Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {id}'}</span></label>
+                      <textarea className="inp" rows={2} value={gen.waTemplateApproved || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateApproved: e.target.value }))} />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label style={{ display: "flex", justifyContent: "space-between" }}>Rejected Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {id}'}</span></label>
+                      <textarea className="inp" rows={2} value={gen.waTemplateRejected || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateRejected: e.target.value }))} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -427,11 +461,22 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               {/* Admin Access & Limits */}
               <div className="card">
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 16, display: "flex", alignItems: "center", gap: 7 }}>🔐 Admin Settings</div>
-                <div className="settings-grid-2">
+                <div className="settings-grid-2" style={{ marginBottom: 14 }}>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Max Seats Per Slot</label>
                     <input className="inp" type="number" min="1" value={gen.seatsPerSlot} onChange={(e) => setGen((g) => ({ ...g, seatsPerSlot: +e.target.value }))} />
                   </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--t2)" }}>
+                    <div
+                      style={{ position: "relative", width: 38, height: 22, borderRadius: 11, background: gen.showSeatCounts ? "linear-gradient(135deg,var(--a),var(--a2))" : "var(--c3)", transition: "background .2s", cursor: "pointer" }}
+                      onClick={() => setGen((g) => ({ ...g, showSeatCounts: !g.showSeatCounts }))}
+                    >
+                      <div style={{ position: "absolute", top: 3, left: gen.showSeatCounts ? 18 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
+                    </div>
+                    Show exact remaining seats to students (Booking step 1 & Landing page)
+                  </label>
                 </div>
               </div>
 
@@ -560,8 +605,9 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
             )}
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {modal.payment_status !== "approved" && <button className="btn btn-success" style={{ flex: 2 }} onClick={() => setStatus(modal.id, "approved")}>{I.check} Approve</button>}
-              {modal.payment_status !== "rejected" && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setStatus(modal.id, "rejected")}>{I.x} Reject</button>}
+              <button className="btn btn-ghost" style={{ border: "1px solid rgba(37,211,102,0.3)", color: "#25D366", flex: 1 }} onClick={() => sendWhatsApp(modal)}>{I.wa || "WA"} Notify</button>
+              {modal.payment_status !== "approved" && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => setStatus(modal.id, "approved")}>{I.check} Approve</button>}
+              {modal.payment_status !== "rejected" && <button className="btn btn-danger" style={{ flex: 0.5 }} onClick={() => setStatus(modal.id, "rejected")}>{I.x} Reject</button>}
               <button className="btn btn-glass" onClick={() => del(modal.id)} style={{ color: "var(--red)" }}>{I.trash}</button>
               <button className="btn btn-ghost" onClick={() => setModal(null)}>✕</button>
             </div>

@@ -3,9 +3,10 @@ import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
 import { HeroGraphic } from "../ui/HeroGraphic.jsx";
 
-export function Landing({ settings, seatCounts, onBook, onAdmin }) {
+export function Landing({ settings, seatCounts, onBook, onAdmin, onCheckStatus }) {
   const approvedCount = seatCounts ? seatCounts.reduce((sum, s) => sum + parseInt(s.used_seats || 0, 10), 0) : 0;
   const [showSupport, setShowSupport] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
 
   useEffect(() => {
     const ob = new IntersectionObserver(
@@ -94,7 +95,7 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
             {/* Badge */}
             <div className="anim-fadeup d1" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 100, padding: "7px 18px 7px 10px", fontSize: 11.5, color: "var(--t2)", marginBottom: 30, fontWeight: 600, backdropFilter: "blur(12px)" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--a)", color: "#fff", borderRadius: 100, padding: "3px 10px", fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }}>LIVE</span>
-              MAY 2025 EXAM BOOKINGS OPEN
+              APRIL 2026 EXAM BOOKINGS OPEN
             </div>
 
             <h1 className="anim-fadeup d2" style={{ fontFamily: "var(--font-head)", fontSize: "clamp(36px, 8vw, 72px)", fontWeight: 900, lineHeight: 0.95, marginBottom: 24, letterSpacing: -2, color: "#fff" }}>
@@ -110,8 +111,8 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
               <button className="btn btn-primary" style={{ fontSize: 15.5, padding: "16px 36px", borderRadius: 14, flex: "1 1 auto" }} onClick={onBook}>
                 Reserve My Seat {I.arrow}
               </button>
-              <button className="btn btn-ghost hide-sm" style={{ fontSize: 15.5, padding: "16px 28px", borderRadius: 14 }} onClick={() => setShowSupport(true)}>
-                View Schedule
+              <button className="btn btn-ghost hide-sm" style={{ fontSize: 15.5, padding: "16px 28px", borderRadius: 14 }} onClick={() => setShowStatus(true)}>
+                Get Digital Pass
               </button>
             </div>
 
@@ -132,7 +133,7 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
                 <div style={{ height: 1, background: "var(--b)" }} />
                 <div style={{ fontSize: 13, color: "#fff", display: "flex", gap: 10, alignItems: "center" }}>
                   <span style={{ color: "var(--a)", fontFamily: "var(--font-mono)", fontSize: 10.5, minWidth: 36 }}>13:11</span>
-                  <span style={{ fontWeight: 500 }}>Booking engine ready. {approvedCount > 0 ? `${approvedCount} seats confirmed.` : "All slots available."}</span>
+                  <span style={{ fontWeight: 500 }}>Booking engine ready. {settings.showSeatCounts ? (approvedCount > 0 ? `${approvedCount} seats confirmed.` : "All slots available.") : "System accepting bookings now."}</span>
                 </div>
               </div>
             </div>
@@ -140,7 +141,9 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
             {/* Stats row */}
             <div className="anim-fadeup d6" style={{ display: "flex", gap: "clamp(20px,5vw,40px)", marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--b)", flexWrap: "wrap" }}>
               {[
-                { v: approvedCount || "0", l: "Booked Seats", c: "var(--a)" },
+                settings.showSeatCounts
+                  ? { v: approvedCount || "0", l: "Booked Seats", c: "var(--a)" }
+                  : { v: settings.centers.reduce((sum, c) => sum + settings.seatsPerSlot * settings.slots.length * settings.dates.length, 0) + "+", l: "Total Capacity", c: "var(--a)" },
                 { v: settings.centers.length, l: "Exam Centers", c: "#fff" },
                 { v: "100%", l: "Safety Record", c: "var(--green)" },
               ].map((s, i) => (
@@ -240,7 +243,7 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
                       <span style={{ fontSize: 10.5, fontWeight: 700, color: statusColor }}>{statusLabel}</span>
                     </div>
-                    <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>{totalBooked} / {totalSeats}</span>
+                    {settings.showSeatCounts && <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>{totalBooked} / {totalSeats}</span>}
                   </div>
                   <div style={{ height: 5, background: "rgba(255,255,255,0.05)", borderRadius: 10, overflow: "hidden" }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${statusColor}, ${statusColor}aa)`, borderRadius: 10, transition: "width 1.2s cubic-bezier(0.16,1,0.3,1)" }} />
@@ -262,7 +265,7 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 40 }}>
             {[
               { t: "On-Time Rate", v: "100%", d: "Zero delays across all routes" },
-              { t: "Bookings Secured", v: approvedCount > 0 ? `${approvedCount}+` : "500+", d: "Students transported safely" },
+              { t: "Bookings Secured", v: settings.showSeatCounts && approvedCount > 0 ? `${approvedCount}+` : "500+", d: "Students transported safely" },
               { t: "Success Rate", v: "99.9%", d: "Confirmed seats, kept" },
               { t: "Support", v: "24/7", d: "WhatsApp + voice support" },
             ].map((s, i) => (
@@ -299,11 +302,12 @@ export function Landing({ settings, seatCounts, onBook, onAdmin }) {
       </footer>
 
       {showSupport && <SupportModal settings={settings} onClose={() => setShowSupport(false)} />}
+      {showStatus && <StatusModal onClose={() => setShowStatus(false)} onCheck={onCheckStatus} />}
 
       {/* ── Sticky mobile bottom CTA ── */}
       <div className="mobile-cta">
-        <button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setShowSupport(true)}>
-          {I.phone} Support
+        <button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setShowStatus(true)}>
+          Get Pass
         </button>
         <button className="btn btn-primary" style={{ flex: 2, justifyContent: "center" }} onClick={onBook}>
           Book Seat {I.arrow}
@@ -333,48 +337,87 @@ function SupportModal({ settings, onClose }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* WhatsApp */}
+          {/* WhatsApp / Call 1 */}
           <div style={{ background: "rgba(37,211,102,0.04)", border: "1px solid rgba(37,211,102,0.15)", borderRadius: 18, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
               <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(37,211,102,0.1)", color: "#25D366", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
                 {I.wa}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>WhatsApp</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 {settings.whatsapp}</div>
+                <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>Approval Related Issues</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 9305572837</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy(settings.whatsapp, "wa")}>
-                {copied === "wa" ? "✓ Copied" : "Copy"}
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy("9305572837", "num1")}>
+                {copied === "num1" ? "✓ Copied" : "Copy"}
               </button>
-              <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noreferrer"
+              <a href={`https://wa.me/919305572837`} target="_blank" rel="noreferrer"
                 className="btn btn-sm" style={{ flex: 2, background: "#25D366", color: "#fff", fontWeight: 700 }}>
                 Chat Now {I.arrow}
               </a>
             </div>
           </div>
 
-          {/* Phone */}
+          {/* WhatsApp / Call 2 */}
           <div style={{ background: "var(--c2)", border: "1px solid var(--b)", borderRadius: 18, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
               <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(99,102,241,0.1)", color: "var(--a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
                 {I.phone}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>Call Support</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 {settings.supportPhone}</div>
+                <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>Other Queries</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 7488403628</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy(settings.supportPhone, "call")}>
-                {copied === "call" ? "✓ Copied" : "Copy"}
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy("7488403628", "num2")}>
+                {copied === "num2" ? "✓ Copied" : "Copy"}
               </button>
-              <a href={`tel:${settings.supportPhone}`} className="btn btn-primary btn-sm" style={{ flex: 2 }}>
+              <a href={`tel:7488403628`} className="btn btn-primary btn-sm" style={{ flex: 2 }}>
                 Call Now {I.arrow}
               </a>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusModal({ onClose, onCheck }) {
+  const [refId, setRefId] = useState("");
+  const [phone, setPhone] = useState("");
+
+  return (
+    <div className="mask" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 22, color: "#fff" }}>Retrieve Pass</div>
+            <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 4 }}>Check your booking status & ticket.</div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ padding: 10, borderRadius: 12 }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="field" style={{ marginBottom: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>Booking Reference</label>
+            <input className="inp" placeholder="e.g. A1B2C3D4 or full ID" value={refId} onChange={(e) => setRefId(e.target.value.trim().toUpperCase())} style={{ fontFamily: "var(--font-mono)", fontSize: 15 }} />
+          </div>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>WhatsApp Number</label>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div className="inp" style={{ width: 68, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--t3)", fontWeight: 700, fontSize: 13, padding: "0" }}>
+                +91
+              </div>
+              <input className="inp" style={{ flex: 1 }} type="tel" maxLength={10} placeholder="10-digit number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
+            </div>
+          </div>
+
+          <button className="btn btn-primary" style={{ width: "100%", padding: "16px", borderRadius: 14, justifyContent: "center", marginTop: 4 }} disabled={!refId || phone.length !== 10} onClick={() => onCheck(refId, phone)}>
+            View Digital Pass {I.arrow}
+          </button>
         </div>
       </div>
     </div>
