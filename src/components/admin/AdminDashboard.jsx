@@ -71,8 +71,14 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     if (tmpl) {
       text = tmpl.replace(/{name}/g, b.name).replace(/{id}/g, b.booking_ref || b.id?.slice(0,8));
     } else {
-      text = `Hi ${b.name},\nYour NPTEL Bus Service booking (ID: ${b.booking_ref || b.id?.slice(0,8)}) has been *${b.payment_status?.toUpperCase() || "PENDING"}*.`;
+      text = `Hi ${b.name},\nYour NPTEL Bus Service booking (ID: ${b.booking_ref || b.id?.slice(0,8)}) has been *${b.payment_status?.toUpperCase() || "PENDING"}*.\n\n🎁 Earn ₹20! Share your Booking ID as a referral code. After 4 successful bookings with your referral, you'll get ₹100 directly!`;
     }
+    
+    // Automatically append referral info to approved messages if not already in the template
+    if (b.payment_status === "approved" && !text.includes("Referral") && !text.includes("referral")) {
+      text += `\n\n🎁 Earn ₹20 per Referral! Share your Booking ID as a referral code. After 4 successful bookings with your referral, you'll get ₹100 directly!`;
+    }
+
     const msg = encodeURIComponent(text);
     const ph = b.phone.length === 10 ? `91${b.phone}` : b.phone;
     window.open(`https://wa.me/${ph}?text=${msg}`, "_blank");
@@ -103,11 +109,12 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
   const exportCSV = () => {
     const rows = [
-      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
+      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Referral Code", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
       ...bookings.map((b) => [
         b.booking_ref || b.id,
         b.name, b.phone, b.email || "",
         b.college, b.roll_no || "",
+        b.referral_code || "",
         b.center, b.exam_date, b.slot,
         b.group_size || 1, b.price || "",
         b.utr, b.payment_status,
@@ -249,6 +256,29 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Referral Usages */}
+            <div className="card" style={{ marginBottom: 14 }}>
+              <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Successful Referral Usages</div>
+              <div style={{ display: "grid", gap: 10 }}>
+                {(() => {
+                  const refCounts = bookings.reduce((acc, b) => {
+                    if (b.referral_code && b.payment_status === "approved") {
+                      acc[b.referral_code] = (acc[b.referral_code] || 0) + 1;
+                    }
+                    return acc;
+                  }, {});
+                  const sortedRefs = Object.entries(refCounts).sort((a, b) => b[1] - a[1]);
+                  if (sortedRefs.length === 0) return <div style={{ fontSize: 13, color: "var(--t3)" }}>No referrals used yet!</div>;
+                  return sortedRefs.map(([code, count]) => (
+                    <div key={code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 10, padding: "10px 14px" }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--a)", fontWeight: 700 }}>{code}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--t2)" }}>{count} Use{count !== 1 ? "s" : ""}</span>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
 
@@ -584,6 +614,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 ["Email",        modal.email || "—"],
                 ["College",      modal.college],
                 ["Roll No.",     modal.roll_no || "—"],
+                ["Referral Used",modal.referral_code || "—"],
                 ["Exam Center",  modal.center],
                 ["Date",         modal.exam_date ? fmtDate(modal.exam_date) : "—"],
                 ["Time Slot",    modal.slot],
