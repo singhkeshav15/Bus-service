@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase.js";
 import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
-import { fmtDate, fmtTime, sv } from "../../utils/helpers.js";
+import { fmtDate, fmtTime } from "../../utils/helpers.js";
 
 export function AdminDashboard({ settings, setSettings, bookings, setBookings, onLogout, toast }) {
   const [tab,    setTab]   = useState("overview");
@@ -28,11 +28,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const [newS, setNewS] = useState({ label: "", time: "" });
 
   /* ── Actions ── */
-  const save = () => {
+  const save = async () => {
     const upd = { ...settings, ...gen, centers: ctrs, dates: dts, slots: sls };
-    setSettings(upd);
-    sv("mk_settings_v2", upd);
-    toast("Settings saved successfully!", "success");
+    await setSettings(upd);
+    toast("Settings saved — live on all devices!", "success");
   };
 
   /* ── Admin: Approve / Reject ── */
@@ -627,6 +626,33 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 </div>
               ))}
             </div>
+
+            {/* Referred Bookings Section */}
+            {(() => {
+              const referredBy = bookings.filter(
+                (b) => b.referral_code && b.referral_code === (modal.booking_ref || modal.id?.slice(0, 8).toUpperCase())
+              );
+              if (referredBy.length === 0) return null;
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "var(--a)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                    🎁 Referred Bookings
+                    <span style={{ background: "rgba(99,102,241,0.15)", color: "var(--a)", borderRadius: 100, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>{referredBy.length}</span>
+                  </div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {referredBy.map((rb) => (
+                      <div key={rb.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "9px 14px" }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{rb.name}</div>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--a)", marginTop: 2 }}>{rb.booking_ref || rb.id?.slice(0, 8)}</div>
+                        </div>
+                        <span className={`badge badge-${rb.payment_status}`} style={{ fontSize: 10, padding: "4px 10px" }}>{rb.payment_status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {modal.screenshot_url && (
               <div style={{ marginBottom: 20 }}>

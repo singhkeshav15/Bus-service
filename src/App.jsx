@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase.js";
 
 import STYLES from "./styles/globals.js";
-import { DEFAULT_SETTINGS, SK } from "./constants/defaults.js";
-import { ld, sv } from "./utils/helpers.js";
+import { DEFAULT_SETTINGS } from "./constants/defaults.js";
 import { useToast } from "./hooks/useToast.js";
 
 import { ToastContainer } from "./components/ui/ToastContainer.jsx";
@@ -35,10 +34,7 @@ export default function App() {
 
   /* ── App state ── */
   const [page, setPage] = useState("home");
-  const [settings, _setSettings] = useState(() => {
-    const s = ld(SK, null);
-    return s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
-  });
+  const [settings, _setSettings] = useState(DEFAULT_SETTINGS);
   const [bookings, _setBookings] = useState([]);      // For Admins only
   const [seatCounts, setSeatCounts] = useState([]);   // For Public Availability
   const [session, setSession] = useState(null);       // Auth Session
@@ -72,6 +68,37 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  /* ── Fetch Settings from Supabase ── */
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("data")
+        .eq("id", 1)
+        .single();
+      if (!error && data?.data && Object.keys(data.data).length > 0) {
+        _setSettings((prev) => ({ ...DEFAULT_SETTINGS, ...prev, ...data.data }));
+      }
+    };
+    fetchSettings();
+
+    // Real-time: any device that saves settings will push to all open tabs/phones
+    const channel = supabase
+      .channel("settings-live")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "settings", filter: "id=eq.1" },
+        (payload) => {
+          if (payload.new?.data) {
+            _setSettings((prev) => ({ ...DEFAULT_SETTINGS, ...prev, ...payload.new.data }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   /* ── Fetch Data ── */
@@ -126,7 +153,14 @@ export default function App() {
   }, [session]);
 
   /* ── State setters ── */
-  const setSettings = (s) => { _setSettings(s); sv(SK, s); };
+  const setSettings = async (s) => {
+    _setSettings(s);
+    // Persist to Supabase so all devices get the update instantly
+    await supabase
+      .from("settings")
+      .update({ data: s })
+      .eq("id", 1);
+  };
   const setBookings = (b) => { _setBookings(b); };
 
   /* ── Page routing ── */
