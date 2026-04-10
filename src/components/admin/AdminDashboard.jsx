@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase.js";
 import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
@@ -161,9 +161,37 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     (!filter.q || [b.name, b.phone, b.id, b.college, b.roll_no].some((v) => v?.toLowerCase().includes(filter.q.toLowerCase())))
   );
 
+  /* ── Referral Data Extraction ── */
+  const referralGroups = useMemo(() => {
+    const groups = {};
+    bookings.forEach(b => {
+      if (b.referral_code) {
+        const code = b.referral_code.toUpperCase();
+        if (!groups[code]) groups[code] = [];
+        groups[code].push(b);
+      }
+    });
+
+    return Object.entries(groups)
+      .map(([code, users]) => {
+        const owner = bookings.find(b => 
+          (b.booking_ref && b.booking_ref.toUpperCase() === code) || 
+          (b.id && b.id.slice(0,8).toUpperCase() === code)
+        );
+        return {
+          code,
+          owner,
+          users,
+          approvedCount: users.filter(u => u.payment_status === "approved").length
+        };
+      })
+      .sort((a, b) => b.approvedCount - a.approvedCount);
+  }, [bookings]);
+
   const TABS = [
     { k: "overview",  l: "Overview",  ic: I.chartBar },
     { k: "bookings",  l: "Bookings",  ic: I.list },
+    { k: "referrals", l: "Referrals", ic: I.gift },
     { k: "settings",  l: "Settings",  ic: I.gear },
   ];
 
@@ -379,6 +407,83 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── REFERRALS TAB ── */}
+        {tab === "referrals" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 20 }}>Referral Network</h2>
+                <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{referralGroups.length} active referral code{referralGroups.length !== 1 ? "s" : ""} being used</p>
+              </div>
+            </div>
+
+            {referralGroups.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>🎁</div>
+                <div style={{ color: "var(--t3)", fontWeight: 500 }}>No referrals have been used by students yet.</div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 20 }}>
+                {referralGroups.map((g) => (
+                  <div key={g.code} className="card anim-fadeup" style={{ padding: 0, overflow: "hidden", border: "1px solid var(--b)" }}>
+                    {/* Header: Owner Info */}
+                    <div style={{ background: "rgba(99,102,241,0.06)", borderBottom: "1px solid var(--b)", padding: "18px 24px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, background: "var(--a)", color: "#fff", padding: "4px 10px", borderRadius: 6, fontWeight: 800, letterSpacing: 1.5 }}>{g.code}</span>
+                          <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 700 }}>{g.approvedCount} Approved Converted</span>
+                        </div>
+                        {g.owner ? (
+                          <div style={{ fontSize: 13, color: "var(--t3)", display: "grid", gap: 6 }}>
+                            <div><strong style={{ color: "#fff" }}>Owner:</strong> {g.owner.name}</div>
+                            <div><strong style={{ color: "#fff" }}>Phone:</strong> {g.owner.phone} {g.owner.payment_status === "approved" ? <span style={{ color: "var(--green)" }}>(Booking Approved)</span> : <span style={{ color: "var(--red)" }}>(Booking {g.owner.payment_status})</span>}</div>
+                            <div><strong style={{ color: "#fff" }}>Roll No:</strong> {g.owner.roll_no || "—"}</div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: "var(--red)", fontWeight: 600 }}>Owner details not found (Code might be external)</div>
+                        )}
+                      </div>
+                      
+                      {g.owner && (
+                         <div style={{ display: "flex", alignItems: "flex-end" }}>
+                            <button className="btn btn-ghost btn-sm" style={{ background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.3)", color: "#25D366" }} onClick={() => {
+                               const text = encodeURIComponent(`Hi ${g.owner.name}!\nGreat news from NPTEL Bus Service! Your referral code (${g.code}) has been successfully used by ${g.approvedCount} student(s) so far.\n\nPlease reply with your UPI QR or Phone number so we can process your cashback reward! 🎁`);
+                               window.open(`https://wa.me/91${g.owner.phone}?text=${text}`, "_blank");
+                            }}>
+                              {I.wa} Process Reward
+                            </button>
+                         </div>
+                      )}
+                    </div>
+                    
+                    {/* Body: Users of this code */}
+                    <div className="scrollable" style={{ padding: "0" }}>
+                      <table className="tbl" style={{ fontSize: 12.5 }}>
+                         <thead>
+                           <tr><th>Student Name</th><th>Phone</th><th>Status</th><th className="hide-sm">Booking Date</th></tr>
+                         </thead>
+                         <tbody>
+                           {g.users.map(u => (
+                             <tr key={u.id} style={{ background: "rgba(0,0,0,0.2)" }}>
+                               <td>
+                                 <div style={{ fontWeight: 600, color: "#fff" }}>{u.name}</div>
+                                 <div style={{ fontSize: 10, color: "var(--a)", fontFamily: "var(--font-mono)", marginTop: 2 }}>{u.booking_ref || u.id?.slice(0,8)}</div>
+                               </td>
+                               <td>{u.phone}</td>
+                               <td><span className={`badge badge-${u.payment_status}`}>{u.payment_status}</span></td>
+                               <td className="hide-sm"><span style={{ color: "var(--t2)" }}>{fmtDate(u.created_at)}</span></td>
+                             </tr>
+                           ))}
+                         </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
