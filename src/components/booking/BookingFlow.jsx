@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "../../supabase.js";
 import { genId, fmtDate, usedSeats } from "../../utils/helpers.js";
 import I from "../../constants/icons.jsx";
@@ -23,6 +23,9 @@ function dataURLtoFile(dataurl, filename) {
 export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
   const [submitError, setSubmitError] = useState("");
   const [step, setStep] = useState(1);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,7 +52,8 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
   const STEPS = ["Selection", "Identity", "Payment", "Verify"];
   const ok1 = form.centerId && form.date && form.slotId && avail > 0;
   const ok2 = form.name.trim() && /^\d{10}$/.test(form.phone.trim()) && form.college.trim() && form.rollNo.trim();
-  const ok4 = form.utr.trim().length === 12 && form.screenshot && turnstileToken;
+  const utrLen = form.utr.trim().length;
+  const ok4 = (utrLen === 11 || utrLen === 12) && form.screenshot && turnstileToken;
 
   const submit = async () => {
     setSubmitError("");
@@ -72,8 +76,13 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         slot: form.slotId, group_size: form.groupSize, price: totalAmt,
       }]);
       if (dbError) {
-        if (dbError.code === "23505" && dbError.message.includes("unique_utr"))
-          throw new Error("This UTR has already been used. Please provide a valid transaction reference.");
+        if (dbError.code === "23505") {
+          const msg = dbError.message.toLowerCase();
+          if (msg.includes("utr")) throw new Error("This UTR has already been used. Please provide a valid transaction reference.");
+          if (msg.includes("phone")) throw new Error("This WhatsApp number is already registered for a booking.");
+          if (msg.includes("roll_no")) throw new Error("This Roll Number has already been used.");
+          throw new Error("A user with these details already exists.");
+        }
         throw new Error(`Save failed: ${dbError.message}`);
       }
       onConfirm({
@@ -404,7 +413,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
               <div className="field" style={{ marginBottom: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                   <label style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>UTR / Transaction ID</label>
-                  <span style={{ fontSize: 9.5, color: "var(--a)", fontWeight: 800 }}>12 DIGITS</span>
+                  <span style={{ fontSize: 9.5, color: "var(--a)", fontWeight: 800 }}>11-12 DIGITS</span>
                 </div>
                 <input
                   className="inp"

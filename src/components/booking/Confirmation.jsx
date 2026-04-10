@@ -1,7 +1,37 @@
+import { useRef, useState } from "react";
 import I from "../../constants/icons.jsx";
 import { fmtDate } from "../../utils/helpers.js";
+import html2canvas from "html2canvas";
 
 export function Confirmation({ booking, settings, onHome }) {
+  const receiptRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadReceipt = async () => {
+    if (!receiptRef.current) return;
+    setDownloading(true);
+    try {
+      // Temporarily remove animation classes that cause html2canvas to render blank
+      receiptRef.current.classList.remove("anim-fadeup", "d3");
+      receiptRef.current.style.opacity = "1";
+      receiptRef.current.style.transform = "none";
+
+      const canvas = await html2canvas(receiptRef.current, { backgroundColor: "#1e293b", scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = imgData;
+      link.download = `Booking-${booking.id}.png`;
+      link.click();
+
+      // Restore classes
+      receiptRef.current.classList.add("anim-fadeup", "d3");
+      receiptRef.current.style.opacity = "";
+      receiptRef.current.style.transform = "";
+    } catch (err) {
+      console.error("Failed to download receipt:", err);
+    }
+    setDownloading(false);
+  };
   // waMsg removed, admin handles the WhatsApp notification
 
   return (
@@ -43,7 +73,7 @@ export function Confirmation({ booking, settings, onHome }) {
         </p>
 
         {/* Booking card */}
-        <div className="card anim-fadeup d3" style={{ marginBottom: 16, textAlign: "left", position: "relative", overflow: "hidden" }}>
+        <div ref={receiptRef} className="card anim-fadeup d3" style={{ marginBottom: 16, textAlign: "left", position: "relative", overflow: "hidden", padding: "20px" }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg,var(--a),var(--a2))" }} />
           {/* Booking ID */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--b)" }}>
@@ -74,9 +104,14 @@ export function Confirmation({ booking, settings, onHome }) {
             <div style={{ fontSize: 13, color: "#FBBF24", fontWeight: 700, marginBottom: 4 }}>Keep This Safe</div>
             <div style={{ fontSize: 12, color: "var(--t2)" }}>Please take a screenshot of this page immediately. This serves as your proof of booking!</div>
           </div>
-          <button className="btn btn-primary" onClick={onHome} style={{ justifyContent: "center", padding: "14px 24px", borderRadius: 12 }}>
-            I've Taken a Screenshot
-          </button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button className="btn btn-ghost" onClick={downloadReceipt} disabled={downloading} style={{ flex: 1, justifyContent: "center", padding: "14px 16px", borderRadius: 12 }}>
+              {downloading ? "Saving..." : "⬇\uFE0E Download"}
+            </button>
+            <button className="btn btn-primary" onClick={onHome} style={{ flex: 2, justifyContent: "center", padding: "14px 24px", borderRadius: 12 }}>
+              Return to Home
+            </button>
+          </div>
         </div>
       </div>
     </div>
