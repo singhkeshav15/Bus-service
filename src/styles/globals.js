@@ -110,6 +110,8 @@ select.inp option{background:#000;color:var(--t)}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
 
+.skeleton{background:linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite linear;border-radius:8px;}
+
 .anim-fadeup{animation:fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both}
 .d1{animation-delay:.08s}.d2{animation-delay:.16s}.d3{animation-delay:.24s}.d4{animation-delay:.32s}.d5{animation-delay:.40s}.d6{animation-delay:.48s}
 

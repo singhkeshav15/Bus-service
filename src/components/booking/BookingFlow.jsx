@@ -3,6 +3,7 @@ import { supabase } from "../../supabase.js";
 import { genId, fmtDate, usedSeats } from "../../utils/helpers.js";
 import I from "../../constants/icons.jsx";
 import { Turnstile } from "@marsidev/react-turnstile";
+import imageCompression from "browser-image-compression";
 
 const EMPTY_FORM = {
   centerId: "", date: "", slotId: "",
@@ -42,11 +43,18 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
 
   const sf = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     if (!file || !file.type.startsWith("image/")) return;
-    const r = new FileReader();
-    r.onload = (e) => { sf("screenshot", e.target.result); sf("screenshotName", file.name); };
-    r.readAsDataURL(file);
+    try {
+      const options = { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true };
+      const compressedFile = await imageCompression(file, options);
+      const r = new FileReader();
+      r.onload = (e) => { sf("screenshot", e.target.result); sf("screenshotName", file.name); };
+      r.readAsDataURL(compressedFile);
+    } catch (err) {
+      console.error("Failed to compress image:", err);
+      setSubmitError("Failed to process image compression.");
+    }
   };
 
   const STEPS = ["Selection", "Identity", "Payment", "Verify"];
@@ -225,31 +233,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
               </div>
             </div>
 
-            {/* Group Size */}
-            {ok1 && (
-              <div style={{ marginBottom: 36 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>4. Number of Seats</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  {[1, 2, 3, 4].map((n) => (
-                    <div
-                      key={n}
-                      className={`choice ${form.groupSize === n ? "active" : ""}`}
-                      style={{ flex: 1, textAlign: "center", padding: "14px 10px" }}
-                      onClick={() => sf("groupSize", n)}
-                    >
-                      <div style={{ fontWeight: 900, fontSize: 22, color: form.groupSize === n ? "var(--a)" : "#fff" }}>{n}</div>
-                      <div style={{ fontSize: 9.5, color: "var(--t3)", fontWeight: 700, marginTop: 4 }}>SEAT{n > 1 ? "S" : ""}</div>
-                    </div>
-                  ))}
-                </div>
-                {center && (
-                  <div style={{ marginTop: 14, padding: "12px 16px", background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, color: "var(--t2)", fontWeight: 600 }}>{form.groupSize} × ₹{center.price}</span>
-                    <span style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 20, color: "var(--a)" }}>= ₹{totalAmt}</span>
-                  </div>
-                )}
-              </div>
-            )}
+
 
             <button className="btn btn-primary" style={{ width: "100%", padding: "17px 24px", fontSize: 15.5, borderRadius: 14 }} disabled={!ok1} onClick={() => setStep(2)}>
               Confirm Selection {I.arrow}
@@ -376,10 +360,25 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         {/* ── STEP 4: VERIFY ── */}
         {step === 4 && (
           <div key="s4" className="anim-fadeup">
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Confirm Payment</h2>
-              <p style={{ fontSize: 14, color: "var(--t3)" }}>Upload your payment screenshot and enter the transaction ID.</p>
-            </div>
+            {loading ? (
+              <div style={{ marginBottom: 40, animation: "fadeIn 0.5s ease" }}>
+                <div style={{ marginBottom: 32 }}>
+                  <div className="skeleton" style={{ height: 32, width: 220, marginBottom: 12 }}></div>
+                  <div className="skeleton" style={{ height: 16, width: "80%" }}></div>
+                </div>
+                <div className="skeleton" style={{ height: 260, width: "100%", borderRadius: 16, marginBottom: 20 }}></div>
+                <div className="skeleton" style={{ height: 100, width: "100%", borderRadius: 16, marginBottom: 24 }}></div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div className="skeleton" style={{ height: 54, flex: 1, borderRadius: 14 }}></div>
+                  <div className="skeleton" style={{ height: 54, flex: 3, borderRadius: 14 }}></div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 32 }}>
+                  <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 26, marginBottom: 8, color: "#fff", letterSpacing: -0.8 }}>Confirm Payment</h2>
+                  <p style={{ fontSize: 14, color: "var(--t3)" }}>Upload your payment screenshot and enter the transaction ID.</p>
+                </div>
 
             {/* Upload Zone */}
             <div
@@ -449,15 +448,12 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
 
             <div style={{ display: "flex", gap: 12 }}>
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(3)} disabled={loading}>{I.arrowLeft} Back</button>
-              <button className="btn btn-primary" style={{ flex: 3, padding: "17px 24px", fontSize: 15, borderRadius: 14 }} disabled={!ok4 || loading} onClick={submit}>
-                {loading ? (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                    <div className="spinner-sm" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.2)" }} />
-                    Securing Your Seat...
-                  </div>
-                ) : <>{I.check} Finalize Booking</>}
+              <button className="btn btn-primary" style={{ flex: 3, padding: "17px 24px", fontSize: 15, borderRadius: 14 }} disabled={!ok4} onClick={submit}>
+                <>{I.check} Finalize Booking</>
               </button>
             </div>
+              </>
+            )}
           </div>
         )}
       </div>

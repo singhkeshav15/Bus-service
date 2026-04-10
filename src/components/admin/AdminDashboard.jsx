@@ -3,6 +3,7 @@ import { supabase } from "../../supabase.js";
 import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
 import { fmtDate, fmtTime } from "../../utils/helpers.js";
+import imageCompression from "browser-image-compression";
 
 export function AdminDashboard({ settings, setSettings, bookings, setBookings, onLogout, toast }) {
   const [tab,    setTab]   = useState("overview");
@@ -463,8 +464,20 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
                 {/* UPI QR Code URL */}
                 <div className="field" style={{ marginBottom: 12 }}>
-                  <label>UPI QR Code Image URL <span style={{ color: "var(--t3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional — shown to students on payment page)</span></label>
-                  <input className="inp" placeholder="https://... paste a direct image URL of your UPI QR code" value={gen.upiQr || ""} onChange={(e) => setGen((g) => ({ ...g, upiQr: e.target.value }))} />
+                  <label>UPI QR Code <span style={{ color: "var(--t3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional — upload image from device)</span></label>
+                  <label className="upload-zone" style={{ display: "block", padding: "16px", cursor: "pointer", borderRadius: 10, border: "1px dashed var(--a)", background: "rgba(99,102,241,0.05)", textAlign: "left", marginBottom: 10 }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      try {
+                        const comp = await imageCompression(file, { maxSizeMB: 0.1, maxWidthOrHeight: 600, useWebWorker: true });
+                        const r = new FileReader(); r.onload = (ev) => setGen(g => ({ ...g, upiQr: ev.target.result })); r.readAsDataURL(comp);
+                      } catch (err) { toast("Error reading QR", "error"); }
+                    }} />
+                    <div style={{ fontSize: 13, color: "var(--a)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                      {I.upload} Click to Upload Local QR Code Image
+                    </div>
+                  </label>
                   {gen.upiQr && (
                     <div style={{ marginTop: 10, display: "flex", alignItems: "flex-start", gap: 12 }}>
                       <div style={{ background: "#fff", padding: 8, borderRadius: 10, display: "inline-flex", boxShadow: "0 4px 14px rgba(0,0,0,0.3)" }}>
@@ -473,7 +486,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                         />
                       </div>
                       <div style={{ fontSize: 12, color: "var(--t3)", lineHeight: 1.6 }}>
-                        ✓ QR preview loaded<br/>Students will see this on the payment step.<br/>
+                        ✓ QR successfully loaded.<br/>Students will see this on the payment step.<br/>
                         <button className="btn btn-danger btn-xs" style={{ marginTop: 6 }} onClick={() => setGen((g) => ({ ...g, upiQr: "" }))}>
                           Remove QR
                         </button>
