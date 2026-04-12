@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   supportPhone: "9876543210",
   waTemplateApproved: "Hi {name},\nYour NPTEL Bus Service booking (ID: {id}) has been *APPROVED*.\nYour seat is safely confirmed. See you on exam day! 🚌\n\n🎁 Earn ₹20 per Referral! Share your Booking ID as a referral code. After 4 successful bookings with your referral, you'll get ₹100 directly!",
   waTemplateRejected: "Hi {name},\nYour NPTEL Bus Service booking (ID: {id}) could not be verified and has been *REJECTED*.\nPlease contact support for more details. ❌",
+  waTemplateReferralReward: "Hi {name}!\nGreat news from NPTEL Bus Service! Your referral code ({code}) has been successfully used by {count} student(s) so far.\n\nPlease reply with your UPI QR or Phone number so we can process your cashback reward! 🎁",
   announcement: "🚌 NPTEL April 2026 booking is LIVE! Reserve your seat before slots fill up.",
   announcementOn: true,
   showSeatCounts: false,

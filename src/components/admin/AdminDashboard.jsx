@@ -20,6 +20,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     announcement: settings.announcement, announcementOn: settings.announcementOn,
     instructions: settings.instructions, footerNote: settings.footerNote,
     showSeatCounts: settings.showSeatCounts ?? false,
+    waTemplateReferralReward: settings.waTemplateReferralReward || "",
   });
   const [ctrs, setCtrs] = useState([...settings.centers]);
   const [dts,  setDts]  = useState([...settings.dates]);
@@ -76,12 +77,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     if (tmpl) {
       text = tmpl.replace(/{name}/g, b.name).replace(/{id}/g, b.booking_ref || b.id?.slice(0,8));
     } else {
-      text = `Hi ${b.name},\nYour NPTEL Bus Service booking (ID: ${b.booking_ref || b.id?.slice(0,8)}) has been *${b.payment_status?.toUpperCase() || "PENDING"}*.\n\n🎁 Earn ₹20! Share your Booking ID as a referral code. After 4 successful bookings with your referral, you'll get ₹100 directly!`;
-    }
-    
-    // Automatically append referral info to approved messages if not already in the template
-    if (b.payment_status === "approved" && !text.includes("Referral") && !text.includes("referral")) {
-      text += `\n\n🎁 Earn ₹20 per Referral! Share your Booking ID as a referral code. After 4 successful bookings with your referral, you'll get ₹100 directly!`;
+      text = `Hi ${b.name},\nYour NPTEL Bus Service booking (ID: ${b.booking_ref || b.id?.slice(0,8)}) has been *${b.payment_status?.toUpperCase() || "PENDING"}*.`;
     }
 
     const msg = encodeURIComponent(text);
@@ -456,7 +452,14 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                       {g.owner && (
                          <div style={{ display: "flex", alignItems: "flex-end" }}>
                             <button className="btn btn-ghost btn-sm" style={{ background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.3)", color: "#25D366" }} onClick={() => {
-                               const text = encodeURIComponent(`Hi ${g.owner.name}!\nGreat news from NPTEL Bus Service! Your referral code (${g.code}) has been successfully used by ${g.approvedCount} student(s) so far.\n\nPlease reply with your UPI QR or Phone number so we can process your cashback reward! 🎁`);
+                               const tmpl = settings.waTemplateReferralReward;
+                               let rawText = "";
+                               if (tmpl) {
+                                 rawText = tmpl.replace(/{name}/g, g.owner.name).replace(/{code}/g, g.code).replace(/{count}/g, g.approvedCount);
+                               } else {
+                                 rawText = `Hi ${g.owner.name}!\nGreat news from NPTEL Bus Service! Your referral code (${g.code}) has been successfully used by ${g.approvedCount} student(s) so far.\n\nPlease reply with your UPI QR or Phone number so we can process your cashback reward! 🎁`;
+                               }
+                               const text = encodeURIComponent(rawText);
                                window.open(`https://wa.me/91${g.owner.phone}?text=${text}`, "_blank");
                             }}>
                               {I.wa} Process Reward
@@ -480,7 +483,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                                </td>
                                <td>{u.phone}</td>
                                <td><span className={`badge badge-${u.payment_status}`}>{u.payment_status}</span></td>
-                               <td className="hide-sm"><span style={{ color: "var(--t2)" }}>{fmtDate(u.created_at)}</span></td>
+                               <td className="hide-sm"><span style={{ color: "var(--t2)" }}>{fmtDate(u.created_at.slice(0, 10))}</span></td>
                              </tr>
                            ))}
                          </tbody>
@@ -533,6 +536,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                     <div className="field" style={{ marginBottom: 0 }}>
                       <label style={{ display: "flex", justifyContent: "space-between" }}>Rejected Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {id}'}</span></label>
                       <textarea className="inp" rows={2} value={gen.waTemplateRejected || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateRejected: e.target.value }))} />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label style={{ display: "flex", justifyContent: "space-between" }}>Referral Reward Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {code}, {count}'}</span></label>
+                      <textarea className="inp" rows={3} value={gen.waTemplateReferralReward || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateReferralReward: e.target.value }))} />
                     </div>
                   </div>
                 </div>
