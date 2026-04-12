@@ -160,7 +160,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const filtered = bookings.filter((b) =>
     (!filter.status || b.payment_status === filter.status) &&
     (!filter.center || b.center === filter.center) &&
-    (!filter.q || [b.name, b.phone, b.id, b.college, b.roll_no].some((v) => v?.toLowerCase().includes(filter.q.toLowerCase())))
+    (!filter.q || [b.name, b.phone, b.booking_ref, b.college, b.roll_no].some((v) => String(v || "").toLowerCase().includes(filter.q.toLowerCase())))
   );
 
   /* ── Referral Data Extraction ── */
