@@ -44,16 +44,15 @@ export default function App() {
 
   const handleCheckStatus = async (bookingRef, phone) => {
     const { data, error } = await supabase
-      .from("students")
-      .select("*")
-      .eq("booking_ref", bookingRef.trim())
-      .eq("phone", phone.trim().replace(/\D/g, ""))
-      .single();
-    if (error || !data) {
+      .rpc("get_booking_by_ref_and_phone", {
+        p_booking_ref: bookingRef.trim(),
+        p_phone: phone.trim().replace(/\D/g, ""),
+      });
+    if (error || !data || data.length === 0) {
       toast("No booking found with this ID and Phone.", "error");
       return;
     }
-    setTicketData(data);
+    setTicketData(data[0]);
     setPage("ticket");
   };
 

@@ -9,10 +9,11 @@ export const sv = (k, v) => {
 };
 
 /* ─── ID / formatting helpers ─── */
-export const genId = () =>
-  "MK" +
-  Math.random().toString(36).slice(2, 5).toUpperCase() +
-  Date.now().toString(36).slice(-3).toUpperCase();
+export const genId = () => {
+  const arr = new Uint32Array(2);
+  crypto.getRandomValues(arr);
+  return "MK" + arr[0].toString(36).toUpperCase() + arr[1].toString(36).toUpperCase();
+};
 
 export const fmtDate = (d) =>
   new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
