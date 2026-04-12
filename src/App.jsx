@@ -50,7 +50,7 @@ export default function App() {
       .from("students")
       .select("*")
       .eq("phone", cleanPhone)
-      .or(`booking_ref.eq.${cleanRef},id.ilike.${cleanRef}%`);
+      .eq("booking_ref", cleanRef);
 
     if (error || !data || data.length === 0) {
       toast("No booking found with this ID and Phone.", "error");

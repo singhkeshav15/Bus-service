@@ -117,7 +117,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
         b.college, b.roll_no || "",
         b.referral_code || "",
         b.pickup_point || "",
-        b.center, b.exam_date, b.slot,
+        settings.centers.find(c => c.id === b.center)?.name || b.center, b.exam_date, b.slot,
         b.group_size || 1, b.price || "",
         b.utr, b.payment_status,
         b.created_at,
@@ -165,25 +165,29 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
   /* ── Referral Data Extraction ── */
   const referralGroups = useMemo(() => {
+    const norm = (str) => String(str || "").trim().toUpperCase().replace(/I/g, "1").replace(/O/g, "0").replace(/Z/g, "2");
     const groups = {};
+
     bookings.forEach(b => {
       if (b.referral_code && b.referral_code.trim()) {
-        const code = b.referral_code.trim().toUpperCase();
-        if (!groups[code]) groups[code] = [];
-        groups[code].push(b);
+        const rc = norm(b.referral_code);
+        if (!groups[rc]) groups[rc] = [];
+        groups[rc].push(b);
       }
     });
 
     return Object.entries(groups)
-      .map(([code, users]) => {
+      .map(([nCode, users]) => {
         const owner = bookings.find(b => 
-          (b.booking_ref && b.booking_ref.trim().toUpperCase() === code) || 
-          (b.id && b.id.slice(0,8).toUpperCase() === code) ||
-          (b.id && b.id.trim().toUpperCase().startsWith(code)) ||
-          (b.phone && b.phone.trim() === code)
+          (b.booking_ref && norm(b.booking_ref) === nCode) || 
+          (b.id && norm(b.id.slice(0,8)) === nCode) ||
+          (b.phone && norm(b.phone) === nCode)
         );
+        // Use the owner's exact correct code for display if found, else fallback to the normalized matched code
+        const displayCode = owner?.booking_ref || (owner?.id?.slice(0, 8).toUpperCase()) || users[0]?.referral_code?.toUpperCase() || nCode;
+
         return {
-          code,
+          code: displayCode,
           owner,
           users,
           approvedCount: users.filter(u => u.payment_status === "approved").length
@@ -337,7 +341,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                         <tr key={b.id} onClick={() => { setModal(b); setTab("bookings"); }}>
                           <td><span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--a)" }}>{b.booking_ref || b.id?.slice(0,8)}</span></td>
                           <td><div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div><div style={{ fontSize: 11, color: "var(--t3)" }}>{b.college?.split(" ").slice(0, 2).join(" ")}</div></td>
-                          <td style={{ fontSize: 12 }}>{b.center}</td>
+                          <td style={{ fontSize: 12 }}>{settings.centers.find(c => c.id === b.center)?.name || b.center}</td>
                           <td className="hide-sm" style={{ fontSize: 12, color: "var(--t2)" }}>{b.exam_date ? fmtDate(b.exam_date) : "—"}</td>
                           <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--a)" }}>₹{b.price || "—"}</td>
                           <td><span className={`badge badge-${b.payment_status}`}>{b.payment_status}</span></td>
@@ -393,7 +397,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                           <div style={{ fontSize: 11, color: "var(--t3)" }}>{b.college}</div>
                         </td>
                         <td style={{ fontSize: 12.5 }}>{b.phone}</td>
-                        <td className="hide-sm" style={{ fontSize: 12, color: "var(--t2)" }}>{b.center}</td>
+                        <td className="hide-sm" style={{ fontSize: 12, color: "var(--t2)" }}>{settings.centers.find(c => c.id === b.center)?.name || b.center}</td>
                         <td className="hide-sm" style={{ fontSize: 11.5, color: "var(--t2)" }}>{b.exam_date ? fmtDate(b.exam_date) : "—"}<br /><span style={{ color: "var(--t3)" }}>{b.slot}</span></td>
                         <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--a)", fontSize: 13 }}>₹{b.price || "—"}</td>
                         <td><span className={`badge badge-${b.payment_status}`}>{b.payment_status}</span></td>
@@ -765,7 +769,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 ["Roll No.",     modal.roll_no || "—"],
                 ["Referral Used",modal.referral_code || "—"],
                 ["Pickup Point", modal.pickup_point || "—"],
-                ["Exam Center",  modal.center],
+                ["Exam Center",  settings.centers.find(c => c.id === modal.center)?.name || modal.center],
                 ["Date",         modal.exam_date ? fmtDate(modal.exam_date) : "—"],
                 ["Time Slot",    modal.slot],
                 ["Total Amount", modal.price ? `₹${modal.price}` : "—"],
