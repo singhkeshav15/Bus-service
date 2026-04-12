@@ -20,6 +20,10 @@ export const DEFAULT_SETTINGS = {
   centers: [],
   dates: [],
   slots: [],
+  pickupPoints: [
+    "GLA Main Gate", "Chhatikara", "Govardhan Chauraha", "Tank Chauraha",
+    "Krishna Valley", "Radha Valley", "Mandi chauraha", "Township chauraha"
+  ],
   instructions:
     "1. Open PhonePe / Google Pay / Paytm\n2. Search or enter the UPI ID\n3. Pay the exact amount\n4. Take a clear screenshot of the success screen\n5. Note your UTR / Transaction ID",
   footerNote: "Operated by students, for students. Safe · Punctual · Affordable.",

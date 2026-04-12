@@ -24,13 +24,18 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const [ctrs, setCtrs] = useState([...settings.centers]);
   const [dts,  setDts]  = useState([...settings.dates]);
   const [sls,  setSls]  = useState([...settings.slots]);
+  const [pickupPts, setPickupPts] = useState([...(settings.pickupPoints || [
+    "GLA Main Gate", "Chhatikara", "Govardhan Chauraha", "Tank Chauraha",
+    "Krishna Valley", "Radha Valley", "Mandi chauraha", "Township chauraha"
+  ])]);
   const [newC, setNewC] = useState({ name: "", city: "", price: "", address: "" });
   const [newD, setNewD] = useState("");
   const [newS, setNewS] = useState({ label: "", time: "" });
+  const [newPickup, setNewPickup] = useState("");
 
   /* ── Actions ── */
   const save = async () => {
-    const upd = { ...settings, ...gen, centers: ctrs, dates: dts, slots: sls };
+    const upd = { ...settings, ...gen, centers: ctrs, dates: dts, slots: sls, pickupPoints: pickupPts };
     await setSettings(upd);
     toast("Settings saved — live on all devices!", "success");
   };
@@ -109,12 +114,13 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
   const exportCSV = () => {
     const rows = [
-      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Referral Code", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
+      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Referral Code", "Pickup Point", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
       ...bookings.map((b) => [
         b.booking_ref || b.id,
         b.name, b.phone, b.email || "",
         b.college, b.roll_no || "",
         b.referral_code || "",
+        b.pickup_point || "",
         b.center, b.exam_date, b.slot,
         b.group_size || 1, b.price || "",
         b.utr, b.payment_status,
@@ -658,6 +664,23 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 </div>
               </div>
 
+              {/* Pickup Points */}
+              <div className="card">
+                <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14, display: "flex", alignItems: "center", gap: 7 }}>📍 Pickup Points</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                  {pickupPts.map((p, i) => (
+                    <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--c2)", border: "1px solid var(--b2)", borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 500 }}>
+                      📍 {p}
+                      <button style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }} onClick={() => setPickupPts((ps) => ps.filter((_, j) => j !== i))}>{I.x}</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="inp" type="text" placeholder="e.g. Mathura Junction" value={newPickup} onChange={(e) => setNewPickup(e.target.value)} style={{ flex: 1 }} />
+                  <button className="btn btn-primary btn-sm" onClick={() => { if (!newPickup.trim() || pickupPts.includes(newPickup.trim())) return; setPickupPts((ps) => [...ps, newPickup.trim()]); setNewPickup(""); }}>{I.plus} Add Point</button>
+                </div>
+              </div>
+
               {/* Dates */}
               <div className="card">
                 <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14, display: "flex", alignItems: "center", gap: 7 }}>📅 Exam Dates</div>
@@ -732,6 +755,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 ["College",      modal.college],
                 ["Roll No.",     modal.roll_no || "—"],
                 ["Referral Used",modal.referral_code || "—"],
+                ["Pickup Point", modal.pickup_point || "—"],
                 ["Exam Center",  modal.center],
                 ["Date",         modal.exam_date ? fmtDate(modal.exam_date) : "—"],
                 ["Time Slot",    modal.slot],

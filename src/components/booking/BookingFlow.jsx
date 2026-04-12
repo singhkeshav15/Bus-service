@@ -8,6 +8,7 @@ import imageCompression from "browser-image-compression";
 const EMPTY_FORM = {
   centerId: "", date: "", slotId: "",
   name: "", phone: "", email: "", college: "", rollNo: "", referral: "",
+  pickupPoint: "", pickupOther: "",
   utr: "", screenshot: null, screenshotName: "", groupSize: 1,
 };
 
@@ -59,7 +60,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
 
   const STEPS = ["Selection", "Identity", "Payment", "Verify"];
   const ok1 = form.centerId && form.date && form.slotId && avail > 0;
-  const ok2 = form.name.trim() && /^\d{10}$/.test(form.phone.trim()) && form.college.trim() && form.rollNo.trim();
+  const ok2 = form.name.trim() && /^\d{10}$/.test(form.phone.trim()) && form.college.trim() && form.rollNo.trim() && (form.pickupPoint && (form.pickupPoint !== "Other" || form.pickupOther.trim()));
   const utrLen = form.utr.trim().length;
   const ok4 = (utrLen === 11 || utrLen === 12) && form.screenshot && turnstileToken;
 
@@ -80,6 +81,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         screenshot_url: imageUrl, payment_status: "pending",
         college: form.college.trim(), roll_no: form.rollNo.trim() || null,
         referral_code: form.referral.trim() || null,
+        pickup_point: form.pickupPoint === "Other" ? form.pickupOther.trim() : form.pickupPoint,
         utr: form.utr.trim(), center: form.centerId, exam_date: form.date,
         slot: form.slotId, group_size: form.groupSize, price: totalAmt,
       }]);
@@ -97,6 +99,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         id: bookingRef, name: form.name.trim(), phone: form.phone.trim(),
         college: form.college.trim(), centerName: center.name, centerCity: center.city,
         date: form.date, slotLabel: slot.label, groupSize: form.groupSize, price: totalAmt,
+        pickupPoint: form.pickupPoint === "Other" ? form.pickupOther.trim() : form.pickupPoint,
       });
     } catch (err) {
       console.error(err);
@@ -275,6 +278,26 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
                   )}
                 </div>
               ))}
+
+              <div className="field" style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1 }}>Pickup Point</label>
+                  <span style={{ fontSize: 9.5, color: "var(--a)", fontWeight: 800 }}>REQUIRED</span>
+                </div>
+                <select className="inp" value={form.pickupPoint === "Other" ? "Other" : form.pickupPoint} onChange={(e) => sf("pickupPoint", e.target.value)} style={{ appearance: "none" }}>
+                  <option value="" disabled>Choose your PickUp Point</option>
+                  {(settings.pickupPoints || [
+                    "GLA Main Gate", "Chhatikara", "Govardhan Chauraha", "Tank Chauraha",
+                    "Krishna Valley", "Radha Valley", "Mandi chauraha", "Township chauraha"
+                  ]).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                  <option value="Other">Other</option>
+                </select>
+                {form.pickupPoint === "Other" && (
+                  <input className="inp" type="text" placeholder="Specify other pickup point" value={form.pickupOther} onChange={(e) => sf("pickupOther", e.target.value)} style={{ marginTop: 10 }} />
+                )}
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: 12 }}>
