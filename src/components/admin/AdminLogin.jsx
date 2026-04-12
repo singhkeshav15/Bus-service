@@ -1,6 +1,7 @@
 import { useState } from "react";
 import I from "../../constants/icons.jsx";
 import { supabase } from "../../supabase.js";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 export function AdminLogin({ settings, onLogin, onBack }) {
   const [email, setEmail] = useState("");
@@ -8,6 +9,7 @@ export function AdminLogin({ settings, onLogin, onBack }) {
   const [err, setErr]   = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const go = async () => {
     setErr("");
@@ -15,6 +17,9 @@ export function AdminLogin({ settings, onLogin, onBack }) {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password: pw,
+      options: {
+        captchaToken: turnstileToken,
+      },
     });
     setLoading(false);
 
@@ -51,7 +56,7 @@ export function AdminLogin({ settings, onLogin, onBack }) {
               placeholder="admin@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && go()}
+              onKeyDown={(e) => e.key === "Enter" && turnstileToken && go()}
             />
           </div>
 
@@ -64,7 +69,7 @@ export function AdminLogin({ settings, onLogin, onBack }) {
               value={pw}
               style={err ? { borderColor: "var(--red)", boxShadow: "0 0 0 3px rgba(244,63,94,0.1)" } : {}}
               onChange={(e) => setPw(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && go()}
+              onKeyDown={(e) => e.key === "Enter" && turnstileToken && go()}
             />
             <button
               onClick={() => setShow((s) => !s)}
@@ -74,13 +79,22 @@ export function AdminLogin({ settings, onLogin, onBack }) {
             </button>
           </div>
 
+          <div style={{ marginBottom: 16 }}>
+            <Turnstile
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+              onSuccess={(token) => setTurnstileToken(token)}
+              onError={() => setTurnstileToken("")}
+              options={{ theme: "dark" }}
+            />
+          </div>
+
           {err && (
             <div style={{ color: "var(--red)", fontSize: 12.5, marginTop: -8, marginBottom: 12, display: "flex", alignItems: "center", gap: 5 }}>
               {I.x} {err}
             </div>
           )}
 
-          <button className="btn btn-primary" style={{ width: "100%", padding: 13 }} onClick={go} disabled={loading}>
+          <button className="btn btn-primary" style={{ width: "100%", padding: 13 }} onClick={go} disabled={loading || !turnstileToken}>
             {loading ? "Authenticating..." : "Login to Admin →"}
           </button>
         </div>
