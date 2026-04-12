@@ -81,15 +81,15 @@ export function Confirmation({ booking, settings, onHome }) {
             <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 17, color: "var(--a)", letterSpacing: 2 }}>{booking.id}</span>
           </div>
           {[
-            ["Passenger",       booking.name],
-            ["Phone",           booking.phone],
-            ["College",         booking.college],
-            ["Exam Center",     `${booking.centerName}, ${booking.centerCity}`],
-            ["Date",            fmtDate(booking.date)],
-            ["Time Slot",       booking.slotLabel],
-            ["Seats",           booking.groupSize],
-            ["Amount Paid",     `₹${booking.price}`],
-            ["Payment Status",  "⏳ Under Verification"],
+            ["Passenger", booking.name],
+            ["Phone", booking.phone],
+            ["College", booking.college],
+            ["Exam Center", `${booking.centerName}, ${booking.centerCity}`],
+            ["Date", fmtDate(booking.date)],
+            ["Time Slot", booking.slotLabel],
+            ["Seats", booking.groupSize],
+            ["Amount Paid", `₹${booking.price}`],
+            ["Payment Status", "⏳ Under Verification"],
           ].map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,.03)" }}>
               <span style={{ fontSize: 12, color: "var(--t3)" }}>{k}</span>
@@ -102,7 +102,7 @@ export function Confirmation({ booking, settings, onHome }) {
           <div style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 12, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 20, marginBottom: 8 }}>📸</div>
             <div style={{ fontSize: 13, color: "#FBBF24", fontWeight: 700, marginBottom: 4 }}>Keep This Safe</div>
-            <div style={{ fontSize: 12, color: "var(--t2)" }}>Please take a screenshot of this page immediately. This serves as your proof of booking!</div>
+            <div style={{ fontSize: 12, color: "var(--t2)" }}>Please take a screenshot of this page immediately or download it from the download button below. This serves as your proof of booking!</div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <button className="btn btn-ghost" onClick={downloadReceipt} disabled={downloading} style={{ flex: 1, justifyContent: "center", padding: "14px 16px", borderRadius: 12 }}>
