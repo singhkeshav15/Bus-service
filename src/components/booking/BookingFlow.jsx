@@ -7,7 +7,7 @@ import imageCompression from "browser-image-compression";
 
 const EMPTY_FORM = {
   centerId: "", date: "", slotId: "",
-  name: "", phone: "", email: "", college: "", rollNo: "", referral: "",
+  name: "", phone: "", email: "", college: "", rollNo: "",
   pickupPoint: "", pickupOther: "",
   utr: "", screenshot: null, screenshotName: "", groupSize: 1,
 };
@@ -94,7 +94,6 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim(),
         screenshot_url: imageUrl, payment_status: "pending",
         college: form.college.trim(), roll_no: form.rollNo.trim() || null,
-        referral_code: form.referral.trim() || null,
         pickup_point: form.pickupPoint === "Other" ? form.pickupOther.trim() : form.pickupPoint,
         utr: form.utr.trim(), center: form.centerId, exam_date: form.date,
         slot: form.slotId, group_size: form.groupSize, price: totalAmt,
@@ -264,7 +263,6 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
                 { k: "email", l: "Email (Optional)", p: "your@university.edu", t: "email", req: false },
                 { k: "college", l: "College / University", p: "Institution name", t: "text", req: true },
                 { k: "rollNo", l: "Roll / Enrollment No.", p: "University roll number", t: "text", req: true },
-                { k: "referral", l: "Referral Code (Optional)", p: "Friend's Booking ID", t: "text", req: false },
               ].map((f) => (
                 <div className="field" key={f.k} style={{ marginBottom: 18 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -279,7 +277,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
                       <input className="inp" style={{ flex: 1 }} type="tel" maxLength={10} placeholder="0000000000" value={form.phone} onChange={(e) => sf("phone", e.target.value.replace(/\D/g, ""))} />
                     </div>
                   ) : (
-                    <input className="inp" type={f.t} placeholder={f.p} value={form[f.k]} onChange={(e) => sf(f.k, f.k === "rollNo" || f.k === "referral" ? e.target.value.toUpperCase().replace(/\s/g, "") : e.target.value)} />
+                    <input className="inp" type={f.t} placeholder={f.p} value={form[f.k]} onChange={(e) => sf(f.k, f.k === "rollNo" ? e.target.value.toUpperCase().replace(/\s/g, "") : e.target.value)} />
                   )}
                 </div>
               ))}

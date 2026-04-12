@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase.js";
 import I from "../../constants/icons.jsx";
 import { Counter } from "../ui/Counter.jsx";
@@ -20,7 +20,6 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     announcement: settings.announcement, announcementOn: settings.announcementOn,
     instructions: settings.instructions, footerNote: settings.footerNote,
     showSeatCounts: settings.showSeatCounts ?? false,
-    waTemplateReferralReward: settings.waTemplateReferralReward || "",
   });
   const [ctrs, setCtrs] = useState([...settings.centers]);
   const [dts,  setDts]  = useState([...settings.dates]);
@@ -34,12 +33,31 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const [newS, setNewS] = useState({ label: "", time: "" });
   const [newPickup, setNewPickup] = useState("");
 
+  /* ── Sync editable states when Supabase settings load ── */
+  useEffect(() => {
+    setCtrs([...settings.centers]);
+    setDts([...settings.dates]);
+    setSls([...settings.slots]);
+    setPickupPts([...(settings.pickupPoints || [])]);
+    setGen({
+      brandName: settings.brandName, tagline: settings.tagline,
+      upiId: settings.upiId, upiName: settings.upiName, upiQr: settings.upiQr || "",
+      seatsPerSlot: settings.seatsPerSlot,
+      whatsapp: settings.whatsapp, supportPhone: settings.supportPhone,
+      waTemplateApproved: settings.waTemplateApproved || "", waTemplateRejected: settings.waTemplateRejected || "",
+      announcement: settings.announcement, announcementOn: settings.announcementOn,
+      instructions: settings.instructions, footerNote: settings.footerNote,
+      showSeatCounts: settings.showSeatCounts ?? false,
+    });
+  }, [settings]);
+
   /* ── Actions ── */
   const save = async () => {
     const upd = { ...settings, ...gen, centers: ctrs, dates: dts, slots: sls, pickupPoints: pickupPts };
     await setSettings(upd);
     toast("Settings saved — live on all devices!", "success");
   };
+
 
   /* ── Admin: Approve / Reject ── */
   const setStatus = async (id, status) => {
@@ -110,12 +128,11 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
 
   const exportCSV = () => {
     const rows = [
-      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Referral Code", "Pickup Point", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
+      ["Booking Ref", "Name", "Phone", "Email", "College", "Roll No", "Pickup Point", "Center", "Date", "Slot", "Seats", "Amount (INR)", "UTR", "Status", "Booked At"],
       ...bookings.map((b) => [
         b.booking_ref || b.id,
         b.name, b.phone, b.email || "",
         b.college, b.roll_no || "",
-        b.referral_code || "",
         b.pickup_point || "",
         settings.centers.find(c => c.id === b.center)?.name || b.center, b.exam_date, b.slot,
         b.group_size || 1, b.price || "",
@@ -163,43 +180,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     (!filter.q || [b.name, b.phone, b.booking_ref, b.college, b.roll_no].some((v) => String(v || "").toLowerCase().includes(filter.q.toLowerCase())))
   );
 
-  /* ── Referral Data Extraction ── */
-  const referralGroups = useMemo(() => {
-    const norm = (str) => String(str || "").trim().toUpperCase().replace(/I/g, "1").replace(/O/g, "0").replace(/Z/g, "2");
-    const groups = {};
-
-    bookings.forEach(b => {
-      if (b.referral_code && b.referral_code.trim()) {
-        const rc = norm(b.referral_code);
-        if (!groups[rc]) groups[rc] = [];
-        groups[rc].push(b);
-      }
-    });
-
-    return Object.entries(groups)
-      .map(([nCode, users]) => {
-        const owner = bookings.find(b => 
-          (b.booking_ref && norm(b.booking_ref) === nCode) || 
-          (b.id && norm(b.id.slice(0,8)) === nCode) ||
-          (b.phone && norm(b.phone) === nCode)
-        );
-        // Use the owner's exact correct code for display if found, else fallback to the normalized matched code
-        const displayCode = owner?.booking_ref || (owner?.id?.slice(0, 8).toUpperCase()) || users[0]?.referral_code?.toUpperCase() || nCode;
-
-        return {
-          code: displayCode,
-          owner,
-          users,
-          approvedCount: users.filter(u => u.payment_status === "approved").length
-        };
-      })
-      .sort((a, b) => b.approvedCount - a.approvedCount);
-  }, [bookings]);
 
   const TABS = [
     { k: "overview",  l: "Overview",  ic: I.chartBar },
     { k: "bookings",  l: "Bookings",  ic: I.list },
-    { k: "referrals", l: "Referrals", ic: I.gift },
     { k: "settings",  l: "Settings",  ic: I.gear },
   ];
 
@@ -295,28 +279,6 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               </div>
             </div>
 
-            {/* Referral Usages */}
-            <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Successful Referral Usages</div>
-              <div style={{ display: "grid", gap: 10 }}>
-                {(() => {
-                  const refCounts = bookings.reduce((acc, b) => {
-                    if (b.referral_code && b.payment_status === "approved") {
-                      acc[b.referral_code] = (acc[b.referral_code] || 0) + 1;
-                    }
-                    return acc;
-                  }, {});
-                  const sortedRefs = Object.entries(refCounts).sort((a, b) => b[1] - a[1]);
-                  if (sortedRefs.length === 0) return <div style={{ fontSize: 13, color: "var(--t3)" }}>No referrals used yet!</div>;
-                  return sortedRefs.map(([code, count]) => (
-                    <div key={code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 10, padding: "10px 14px" }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--a)", fontWeight: 700 }}>{code}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--t2)" }}>{count} Use{count !== 1 ? "s" : ""}</span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
 
             {/* Recent bookings */}
             <div className="card">
@@ -418,89 +380,6 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
           </div>
         )}
 
-        {/* ── REFERRALS TAB ── */}
-        {tab === "referrals" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-              <div>
-                <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 20 }}>Referral Network</h2>
-                <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{referralGroups.length} active referral code{referralGroups.length !== 1 ? "s" : ""} being used</p>
-              </div>
-            </div>
-
-            {referralGroups.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
-                <div style={{ fontSize: 32, marginBottom: 10 }}>🎁</div>
-                <div style={{ color: "var(--t3)", fontWeight: 500 }}>No referrals have been used by students yet.</div>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: 20 }}>
-                {referralGroups.map((g) => (
-                  <div key={g.code} className="card anim-fadeup" style={{ padding: 0, overflow: "hidden", border: "1px solid var(--b)" }}>
-                    {/* Header: Owner Info */}
-                    <div style={{ background: "rgba(99,102,241,0.06)", borderBottom: "1px solid var(--b)", padding: "18px 24px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, background: "var(--a)", color: "#fff", padding: "4px 10px", borderRadius: 6, fontWeight: 800, letterSpacing: 1.5 }}>{g.code}</span>
-                          <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 700 }}>{g.approvedCount} Approved Converted</span>
-                        </div>
-                        {g.owner ? (
-                          <div style={{ fontSize: 13, color: "var(--t3)", display: "grid", gap: 6 }}>
-                            <div><strong style={{ color: "#fff" }}>Owner:</strong> {g.owner.name}</div>
-                            <div><strong style={{ color: "#fff" }}>Phone:</strong> {g.owner.phone} {g.owner.payment_status === "approved" ? <span style={{ color: "var(--green)" }}>(Booking Approved)</span> : <span style={{ color: "var(--red)" }}>(Booking {g.owner.payment_status})</span>}</div>
-                            <div><strong style={{ color: "#fff" }}>Roll No:</strong> {g.owner.roll_no || "—"}</div>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 12, color: "var(--red)", fontWeight: 600 }}>Owner details not found (Code might be external)</div>
-                        )}
-                      </div>
-                      
-                      {g.owner && (
-                         <div style={{ display: "flex", alignItems: "flex-end" }}>
-                            <button className="btn btn-ghost btn-sm" style={{ background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.3)", color: "#25D366" }} onClick={() => {
-                               const tmpl = settings.waTemplateReferralReward;
-                               let rawText = "";
-                               if (tmpl) {
-                                 rawText = tmpl.replace(/{name}/g, g.owner.name).replace(/{code}/g, g.code).replace(/{count}/g, g.approvedCount);
-                               } else {
-                                 rawText = `Hi ${g.owner.name}!\nGreat news from NPTEL Bus Service! Your referral code (${g.code}) has been successfully used by ${g.approvedCount} student(s) so far.\n\nPlease reply with your UPI QR or Phone number so we can process your cashback reward! 🎁`;
-                               }
-                               const text = encodeURIComponent(rawText);
-                               window.open(`https://wa.me/91${g.owner.phone}?text=${text}`, "_blank");
-                            }}>
-                              {I.wa} Process Reward
-                            </button>
-                         </div>
-                      )}
-                    </div>
-                    
-                    {/* Body: Users of this code */}
-                    <div className="scrollable" style={{ padding: "0" }}>
-                      <table className="tbl" style={{ fontSize: 12.5 }}>
-                         <thead>
-                           <tr><th>Student Name</th><th>Phone</th><th>Status</th><th className="hide-sm">Booking Date</th></tr>
-                         </thead>
-                         <tbody>
-                           {g.users.map(u => (
-                             <tr key={u.id} style={{ background: "rgba(0,0,0,0.2)" }}>
-                               <td>
-                                 <div style={{ fontWeight: 600, color: "#fff" }}>{u.name}</div>
-                                 <div style={{ fontSize: 10, color: "var(--a)", fontFamily: "var(--font-mono)", marginTop: 2 }}>{u.booking_ref || u.id?.slice(0,8)}</div>
-                               </td>
-                               <td>{u.phone}</td>
-                               <td><span className={`badge badge-${u.payment_status}`}>{u.payment_status}</span></td>
-                               <td className="hide-sm"><span style={{ color: "var(--t2)" }}>{fmtDate(u.created_at.slice(0, 10))}</span></td>
-                             </tr>
-                           ))}
-                         </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── SETTINGS TAB ── */}
         {tab === "settings" && (
@@ -543,10 +422,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                       <label style={{ display: "flex", justifyContent: "space-between" }}>Rejected Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {id}'}</span></label>
                       <textarea className="inp" rows={2} value={gen.waTemplateRejected || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateRejected: e.target.value }))} />
                     </div>
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label style={{ display: "flex", justifyContent: "space-between" }}>Referral Reward Message <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 400 }}>{'Variables: {name}, {code}, {count}'}</span></label>
-                      <textarea className="inp" rows={3} value={gen.waTemplateReferralReward || ""} onChange={(e) => setGen((g) => ({ ...g, waTemplateReferralReward: e.target.value }))} />
-                    </div>
+
                   </div>
                 </div>
               </div>
@@ -767,7 +643,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 ["Email",        modal.email || "—"],
                 ["College",      modal.college],
                 ["Roll No.",     modal.roll_no || "—"],
-                ["Referral Used",modal.referral_code || "—"],
+
                 ["Pickup Point", modal.pickup_point || "—"],
                 ["Exam Center",  settings.centers.find(c => c.id === modal.center)?.name || modal.center],
                 ["Date",         modal.exam_date ? fmtDate(modal.exam_date) : "—"],
@@ -782,32 +658,7 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
               ))}
             </div>
 
-            {/* Referred Bookings Section */}
-            {(() => {
-              const referredBy = bookings.filter(
-                (b) => b.referral_code && b.referral_code === (modal.booking_ref || modal.id?.slice(0, 8).toUpperCase())
-              );
-              if (referredBy.length === 0) return null;
-              return (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "var(--a)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                    🎁 Referred Bookings
-                    <span style={{ background: "rgba(99,102,241,0.15)", color: "var(--a)", borderRadius: 100, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>{referredBy.length}</span>
-                  </div>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {referredBy.map((rb) => (
-                      <div key={rb.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "9px 14px" }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{rb.name}</div>
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--a)", marginTop: 2 }}>{rb.booking_ref || rb.id?.slice(0, 8)}</div>
-                        </div>
-                        <span className={`badge badge-${rb.payment_status}`} style={{ fontSize: 10, padding: "4px 10px" }}>{rb.payment_status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+
 
             {modal.screenshot_url && (
               <div style={{ marginBottom: 20 }}>
