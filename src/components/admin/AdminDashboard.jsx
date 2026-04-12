@@ -167,8 +167,8 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
   const referralGroups = useMemo(() => {
     const groups = {};
     bookings.forEach(b => {
-      if (b.referral_code) {
-        const code = b.referral_code.toUpperCase();
+      if (b.referral_code && b.referral_code.trim()) {
+        const code = b.referral_code.trim().toUpperCase();
         if (!groups[code]) groups[code] = [];
         groups[code].push(b);
       }
@@ -177,8 +177,10 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     return Object.entries(groups)
       .map(([code, users]) => {
         const owner = bookings.find(b => 
-          (b.booking_ref && b.booking_ref.toUpperCase() === code) || 
-          (b.id && b.id.slice(0,8).toUpperCase() === code)
+          (b.booking_ref && b.booking_ref.trim().toUpperCase() === code) || 
+          (b.id && b.id.slice(0,8).toUpperCase() === code) ||
+          (b.id && b.id.trim().toUpperCase().startsWith(code)) ||
+          (b.phone && b.phone.trim() === code)
         );
         return {
           code,

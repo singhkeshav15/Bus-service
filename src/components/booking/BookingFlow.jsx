@@ -75,6 +75,20 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         .upload(`screenshots/${fileName}`, dataURLtoFile(form.screenshot, fileName));
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
       const imageUrl = `https://fbczqcuuqtiaibffsnws.supabase.co/storage/v1/object/public/payments/${uploadData.path}`;
+
+      const { data: dups } = await supabase
+        .from("students")
+        .select("phone, roll_no, utr")
+        .or(`phone.eq.${form.phone.trim()},roll_no.eq.${form.rollNo.trim()},utr.eq.${form.utr.trim()}`);
+
+      if (dups && dups.length > 0) {
+        for (const dup of dups) {
+          if (dup.phone === form.phone.trim()) throw new Error("This WhatsApp number is already registered for a booking.");
+          if (dup.roll_no === form.rollNo.trim()) throw new Error("This Roll Number has already been used.");
+          if (dup.utr === form.utr.trim()) throw new Error("This UTR has already been used. Please provide a valid transaction reference.");
+        }
+      }
+
       const { error: dbError } = await supabase.from("students").insert([{
         booking_ref: bookingRef,
         name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim(),
@@ -85,16 +99,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         utr: form.utr.trim(), center: form.centerId, exam_date: form.date,
         slot: form.slotId, group_size: form.groupSize, price: totalAmt,
       }]);
-      if (dbError) {
-        if (dbError.code === "23505") {
-          const msg = dbError.message.toLowerCase();
-          if (msg.includes("utr")) throw new Error("This UTR has already been used. Please provide a valid transaction reference.");
-          if (msg.includes("phone")) throw new Error("This WhatsApp number is already registered for a booking.");
-          if (msg.includes("roll_no")) throw new Error("This Roll Number has already been used.");
-          throw new Error("A user with these details already exists.");
-        }
-        throw new Error(`Save failed: ${dbError.message}`);
-      }
+      if (dbError) throw new Error(`Save failed: ${dbError.message}`);
       onConfirm({
         id: bookingRef, name: form.name.trim(), phone: form.phone.trim(),
         college: form.college.trim(), centerName: center.name, centerCity: center.city,

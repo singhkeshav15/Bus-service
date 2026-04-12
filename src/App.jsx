@@ -43,11 +43,15 @@ export default function App() {
   const [toasts, toast] = useToast();
 
   const handleCheckStatus = async (bookingRef, phone) => {
+    const cleanPhone = phone.trim().replace(/\D/g, "");
+    const cleanRef = bookingRef.trim();
+
     const { data, error } = await supabase
-      .rpc("get_booking_by_ref_and_phone", {
-        p_booking_ref: bookingRef.trim(),
-        p_phone: phone.trim().replace(/\D/g, ""),
-      });
+      .from("students")
+      .select("*")
+      .eq("phone", cleanPhone)
+      .or(`booking_ref.eq.${cleanRef},id.ilike.${cleanRef}%`);
+
     if (error || !data || data.length === 0) {
       toast("No booking found with this ID and Phone.", "error");
       return;
