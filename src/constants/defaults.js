@@ -16,6 +16,8 @@ export const DEFAULT_SETTINGS = {
   waTemplateRejected: "Hi {name},\nYour NPTEL Bus Service booking (ID: {id}) could not be verified and has been *REJECTED*.\nPlease contact support for more details. ❌",
   announcement: "🚌 NPTEL April 2026 booking is LIVE! Reserve your seat before slots fill up.",
   announcementOn: true,
+  bookingOpen: true,
+  bookingClosedMsg: "We're sorry, seat bookings are temporarily closed. Please check back later or contact support.",
   showSeatCounts: false,
   centers: [],
   dates: [],

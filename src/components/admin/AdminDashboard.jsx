@@ -20,6 +20,8 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
     announcement: settings.announcement, announcementOn: settings.announcementOn,
     instructions: settings.instructions, footerNote: settings.footerNote,
     showSeatCounts: settings.showSeatCounts ?? false,
+    bookingOpen: settings.bookingOpen ?? true,
+    bookingClosedMsg: settings.bookingClosedMsg || "",
   });
   const [ctrs, setCtrs] = useState([...settings.centers]);
   const [dts,  setDts]  = useState([...settings.dates]);
@@ -48,6 +50,8 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
       announcement: settings.announcement, announcementOn: settings.announcementOn,
       instructions: settings.instructions, footerNote: settings.footerNote,
       showSeatCounts: settings.showSeatCounts ?? false,
+      bookingOpen: settings.bookingOpen ?? true,
+      bookingClosedMsg: settings.bookingClosedMsg || "",
     });
   }, [settings]);
 
@@ -242,6 +246,19 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                 </div>
               ))}
             </div>
+
+            {/* Booking Closed Alert */}
+            {!settings.bookingOpen && (
+              <div className="anim-fadeup" style={{ background: "rgba(244,63,94,0.07)", border: "1.5px solid rgba(244,63,94,0.3)", borderRadius: 16, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--red)", fontWeight: 700 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", boxShadow: "0 0 8px var(--red)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                  🚫 Bookings are currently CLOSED for students
+                </div>
+                <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.1)", color: "var(--red)", border: "1px solid rgba(244,63,94,0.25)", padding: "8px 16px" }} onClick={() => setTab("settings")}>
+                  Open Bookings →
+                </button>
+              </div>
+            )}
 
             {/* Pending alert */}
             {stats.pending > 0 && (
@@ -498,6 +515,62 @@ export function AdminDashboard({ settings, setSettings, bookings, setBookings, o
                   <label>Payment Instructions (shown to students)</label>
                   <textarea className="inp" rows={5} value={gen.instructions || ""} onChange={(e) => setGen((g) => ({ ...g, instructions: e.target.value }))} placeholder="Step-by-step instructions…" />
                 </div>
+              </div>
+
+              {/* Booking Open/Close Toggle */}
+              <div className="card" style={{ border: gen.bookingOpen ? "1.5px solid rgba(16,185,129,0.35)" : "1.5px solid rgba(244,63,94,0.35)", background: gen.bookingOpen ? "rgba(16,185,129,0.04)" : "rgba(244,63,94,0.04)", transition: "border-color .3s, background .3s" }}>
+                <div style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: 15, marginBottom: 4, display: "flex", alignItems: "center", gap: 7 }}>🚦 Booking Gate</div>
+                <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 18 }}>Toggle to instantly open or close bookings for all students on the website.</div>
+
+                {/* Big Toggle */}
+                <div
+                  onClick={() => setGen((g) => ({ ...g, bookingOpen: !g.bookingOpen }))}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    background: gen.bookingOpen ? "rgba(16,185,129,0.1)" : "rgba(244,63,94,0.1)",
+                    border: `1px solid ${gen.bookingOpen ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)"}`,
+                    borderRadius: 16, padding: "18px 22px", cursor: "pointer",
+                    marginBottom: 16, transition: "all .3s",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 14, fontSize: 24,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: gen.bookingOpen ? "rgba(16,185,129,0.15)" : "rgba(244,63,94,0.15)",
+                    }}>
+                      {gen.bookingOpen ? "🟢" : "🔴"}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 16, color: gen.bookingOpen ? "var(--green)" : "var(--red)", letterSpacing: -0.3 }}>
+                        Bookings: {gen.bookingOpen ? "OPEN" : "CLOSED"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 3 }}>
+                        {gen.bookingOpen
+                          ? "Students can see and submit bookings normally."
+                          : "All booking forms are hidden. A closed notice is shown instead."}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Pill Toggle */}
+                  <div style={{ position: "relative", width: 52, height: 28, borderRadius: 14, flexShrink: 0,
+                    background: gen.bookingOpen ? "var(--green)" : "var(--red)",
+                    transition: "background .3s", boxShadow: `0 0 14px ${gen.bookingOpen ? "rgba(16,185,129,0.4)" : "rgba(244,63,94,0.4)"}` }}>
+                    <div style={{ position: "absolute", top: 4, left: gen.bookingOpen ? 26 : 4, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .3s", boxShadow: "0 2px 6px rgba(0,0,0,0.35)" }} />
+                  </div>
+                </div>
+
+                {/* Custom closed message */}
+                {!gen.bookingOpen && (
+                  <div className="field" style={{ marginBottom: 0, animation: "fadeIn .3s ease" }}>
+                    <label>Message shown to students when booking is closed</label>
+                    <textarea className="inp" rows={2}
+                      placeholder="Sorry, we have closed booking seats. Please check back soon!"
+                      value={gen.bookingClosedMsg || ""}
+                      onChange={(e) => setGen((g) => ({ ...g, bookingClosedMsg: e.target.value }))}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Admin Access & Limits */}

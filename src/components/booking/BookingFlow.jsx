@@ -112,6 +112,85 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
     }
   };
 
+  // ── Booking Closed Guard ──
+  if (settings.bookingOpen === false) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <div style={{
+          padding: "14px 24px", borderBottom: "1px solid var(--b)",
+          display: "flex", alignItems: "center", gap: 16,
+          background: "rgba(0,0,0,0.65)", backdropFilter: "blur(24px)", zIndex: 100,
+        }}>
+          <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ gap: 8 }}>{I.arrowLeft} Back</button>
+          <div>
+            <div style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 15, color: "#fff" }}>{settings.brandName}</div>
+            <div style={{ fontSize: 10, color: "var(--t4)", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>Booking Engine · Secure</div>
+          </div>
+        </div>
+
+        {/* Closed Notice */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+          <div className="anim-fadeup" style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
+            {/* Glowing icon */}
+            <div style={{ position: "relative", display: "inline-flex", marginBottom: 32 }}>
+              <div style={{
+                width: 100, height: 100, borderRadius: "50%",
+                background: "rgba(244,63,94,0.1)",
+                border: "2px solid rgba(244,63,94,0.35)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 46, boxShadow: "0 0 40px rgba(244,63,94,0.25), 0 0 80px rgba(244,63,94,0.1)",
+                animation: "pulse 2.5s ease-in-out infinite",
+              }}>🚫</div>
+            </div>
+
+            <h2 style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 30, color: "#fff", marginBottom: 16, letterSpacing: -1, lineHeight: 1.15 }}>
+              Seat Bookings<br />
+              <span style={{ color: "var(--red)" }}>Are Currently Closed</span>
+            </h2>
+
+            <div style={{
+              background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)",
+              borderRadius: 18, padding: "22px 28px", marginBottom: 32,
+              fontSize: 14.5, color: "var(--t2)", lineHeight: 1.7, fontWeight: 500,
+            }}>
+              {settings.bookingClosedMsg ||
+                "We're sorry — seat bookings are temporarily closed. Please check back later or contact support for more information."}
+            </div>
+
+            {/* Info pills */}
+            <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 10, marginBottom: 36 }}>
+              {[
+                { icon: "⏳", text: "Check back soon" },
+                { icon: "📞", text: `Call ${settings.supportPhone || "support"}` },
+                { icon: "💬", text: "Contact on WhatsApp" },
+              ].map((p, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "rgba(255,255,255,0.04)", border: "1px solid var(--b2)",
+                  borderRadius: 100, padding: "8px 16px", fontSize: 12.5, color: "var(--t2)", fontWeight: 600,
+                  cursor: p.icon === "💬" ? "pointer" : "default",
+                }}
+                  onClick={() => {
+                    if (p.icon === "💬" && settings.whatsapp) {
+                      window.open(`https://wa.me/${settings.whatsapp}?text=Hi, I want to know about bus bookings.`, "_blank");
+                    }
+                  }}
+                >
+                  {p.icon} {p.text}
+                </div>
+              ))}
+            </div>
+
+            <button className="btn btn-ghost" style={{ padding: "14px 40px", fontSize: 14, borderRadius: 14 }} onClick={onBack}>
+              {I.arrowLeft} Go Back Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       {/* Sticky Header */}
