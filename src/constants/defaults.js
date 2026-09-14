@@ -1,7 +1,3 @@
-/* ─── Storage Keys ─── */
-export const BK = "mk_bookings_v2";
-export const SK = "mk_settings_v2";
-
 /* ─── Default Settings ─── */
 export const DEFAULT_SETTINGS = {
   brandName: "MK Bus Service",

@@ -74,7 +74,7 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
         .from("payments")
         .upload(`screenshots/${fileName}`, dataURLtoFile(form.screenshot, fileName));
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-      const imageUrl = `https://fbczqcuuqtiaibffsnws.supabase.co/storage/v1/object/public/payments/${uploadData.path}`;
+      const imageUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/payments/${uploadData.path}`;
 
       const { data: dups } = await supabase
         .from("students")
@@ -380,6 +380,50 @@ export function BookingFlow({ settings, seatCounts, onConfirm, onBack }) {
                   <input className="inp" type="text" placeholder="Specify other pickup point" value={form.pickupOther} onChange={(e) => sf("pickupOther", e.target.value)} style={{ marginTop: 10 }} />
                 )}
               </div>
+            </div>
+
+            {/* ── Group Size Picker ── */}
+            <div className="card" style={{ padding: "20px 26px", marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                    Number of Seats
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--t3)", lineHeight: 1.5 }}>
+                    Booking for yourself or a group? Max 4 per booking.
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: 38, height: 38, padding: 0, borderRadius: 10, justifyContent: "center", fontSize: 20, fontWeight: 300 }}
+                    disabled={form.groupSize <= 1}
+                    onClick={() => sf("groupSize", form.groupSize - 1)}
+                  >−</button>
+                  <div style={{ textAlign: "center", minWidth: 40 }}>
+                    <div style={{ fontFamily: "var(--font-head)", fontWeight: 900, fontSize: 28, color: "var(--a)", lineHeight: 1 }}>
+                      {form.groupSize}
+                    </div>
+                    <div style={{ fontSize: 9.5, color: "var(--t3)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginTop: 2 }}>
+                      {form.groupSize === 1 ? "seat" : "seats"}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: 38, height: 38, padding: 0, borderRadius: 10, justifyContent: "center", fontSize: 20, fontWeight: 300 }}
+                    disabled={form.groupSize >= 4}
+                    onClick={() => sf("groupSize", form.groupSize + 1)}
+                  >+</button>
+                </div>
+              </div>
+              {center && (
+                <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(99,102,241,0.05)", borderRadius: 10, border: "1px solid rgba(99,102,241,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--t3)", fontWeight: 600 }}>Total Amount</span>
+                  <span style={{ fontFamily: "var(--font-head)", fontWeight: 800, fontSize: 18, color: "var(--a)" }}>
+                    ₹{totalAmt} <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 500 }}>({form.groupSize} × ₹{center.price})</span>
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 12 }}>

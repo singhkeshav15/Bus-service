@@ -325,6 +325,11 @@ function SupportModal({ settings, onClose }) {
     setTimeout(() => setCopied(""), 2000);
   };
 
+  // settings.whatsapp is stored with country code e.g. "919876543210"
+  // slice(-10) gives us the clean 10-digit number for display & copy
+  const waDisplay = settings.whatsapp?.slice(-10) || "—";
+  const supportDisplay = settings.supportPhone || "—";
+
   return (
     <div className="mask" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
@@ -337,7 +342,7 @@ function SupportModal({ settings, onClose }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* WhatsApp / Call 1 */}
+          {/* WhatsApp */}
           <div style={{ background: "rgba(37,211,102,0.04)", border: "1px solid rgba(37,211,102,0.15)", borderRadius: 18, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
               <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(37,211,102,0.1)", color: "#25D366", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
@@ -345,21 +350,21 @@ function SupportModal({ settings, onClose }) {
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>Approval Related Issues</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 9305572837</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 {waDisplay}</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy("9305572837", "num1")}>
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy(waDisplay, "num1")}>
                 {copied === "num1" ? "✓ Copied" : "Copy"}
               </button>
-              <a href={`https://wa.me/919305572837`} target="_blank" rel="noreferrer"
+              <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noreferrer"
                 className="btn btn-sm" style={{ flex: 2, background: "#25D366", color: "#fff", fontWeight: 700 }}>
                 Chat Now {I.arrow}
               </a>
             </div>
           </div>
 
-          {/* WhatsApp / Call 2 */}
+          {/* Phone Call */}
           <div style={{ background: "var(--c2)", border: "1px solid var(--b)", borderRadius: 18, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
               <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(99,102,241,0.1)", color: "var(--a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
@@ -367,14 +372,14 @@ function SupportModal({ settings, onClose }) {
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--t3)" }}>Other Queries</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 7488403628</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 17, color: "#fff", marginTop: 3, fontWeight: 600 }}>+91 {supportDisplay}</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy("7488403628", "num2")}>
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => copy(supportDisplay, "num2")}>
                 {copied === "num2" ? "✓ Copied" : "Copy"}
               </button>
-              <a href={`tel:7488403628`} className="btn btn-primary btn-sm" style={{ flex: 2 }}>
+              <a href={`tel:${settings.supportPhone}`} className="btn btn-primary btn-sm" style={{ flex: 2 }}>
                 Call Now {I.arrow}
               </a>
             </div>
